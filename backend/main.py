@@ -1,19 +1,23 @@
 """
 CSA AIaaS Platform - FastAPI Entry Point
-Sprint 1: The Neuro-Skeleton
+Sprint 1, 2 & 3: The Neuro-Skeleton, Memory, and Voice
 
 This is the main FastAPI application that serves as the backend API.
 """
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import uvicorn
+from pathlib import Path
 
 from app.core.config import settings
 from app.graph.main_graph import run_workflow
 from app.core.database import log_audit_entry
+from app.api.chat_routes import router as chat_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -30,6 +34,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include chat router FIRST (Sprint 3) - MUST be before static files
+app.include_router(chat_router)
+
+# Mount static files for chat UI (Sprint 3) - MUST be after API routes
+static_path = Path("static")
+if static_path.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # =============================================================================
@@ -69,6 +81,20 @@ class TaskResponse(BaseModel):
 # API ENDPOINTS
 # =============================================================================
 
+@app.get("/chat")
+async def serve_chat_interface():
+    """
+    Serve the chat interface HTML page.
+
+    Access at: http://localhost:8000/chat
+    """
+    chat_html_path = Path("static/chat.html")
+    if chat_html_path.exists():
+        return FileResponse(chat_html_path)
+    else:
+        raise HTTPException(status_code=404, detail="Chat interface not found")
+
+
 @app.get("/")
 async def root():
     """Root endpoint - API health check."""
@@ -76,7 +102,18 @@ async def root():
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "running",
-        "message": "CSA AIaaS Platform - Sprint 1: The Neuro-Skeleton"
+        "message": "CSA AIaaS Platform - Sprint 1, 2 & 3: Complete Phase 1",
+        "sprints": {
+            "sprint_1": "The Neuro-Skeleton (Infrastructure & Core Logic)",
+            "sprint_2": "The Memory Implantation (ETL & Vector DB)",
+            "sprint_3": "The Voice (RAG Agent & Conversational UI)"
+        },
+        "endpoints": {
+            "chat": "/api/v1/chat",
+            "execute": "/api/v1/execute",
+            "health": "/health",
+            "docs": "/docs"
+        }
     }
 
 
@@ -202,15 +239,21 @@ async def get_task_status(task_id: str):
 async def startup_event():
     """Execute tasks on application startup."""
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print("Sprint 1: The Neuro-Skeleton")
+    print("Sprint 1, 2 & 3: Phase 1 Complete")
+    print("")
+    print("Available Features:")
+    print("  - Sprint 1: Ambiguity Detection & LangGraph Workflow")
+    print("  - Sprint 2: Knowledge Base with Vector Search (RAG)")
+    print("  - Sprint 3: Conversational Chat Interface")
+    print("")
 
     # Validate configuration
     try:
         settings.validate()
-        print("Configuration validated successfully")
+        print("✓ Configuration validated successfully")
     except ValueError as e:
-        print(f"Configuration validation failed: {e}")
-        print("Please check your .env file")
+        print(f"✗ Configuration validation failed: {e}")
+        print("  Please check your .env file")
 
 
 @app.on_event("shutdown")

@@ -1,0 +1,54 @@
+{
+  "timestamp": "2025-12-19T23:35:22.381625",
+  "tests": [
+    {
+      "name": "Configuration Check",
+      "success": true,
+      "details": {
+        "OPENROUTER_API_KEY": true,
+        "OPENROUTER_MODEL": true
+      }
+    },
+    {
+      "name": "Conversation Memory",
+      "success": true,
+      "details": {
+        "messages_added": 4,
+        "messages_retrieved": 4,
+        "langchain_conversion": true,
+        "clear_works": true
+      }
+    },
+    {
+      "name": "RAG Agent",
+      "success": true,
+      "details": {
+        "response_generated": true,
+        "metadata_present": true,
+        "retrieved_chunks": 0,
+        "sources_count": 0
+      }
+    },
+    {
+      "name": "Chat Function",
+      "success": true,
+      "details": {
+        "conversation_created": true,
+        "multi_turn_works": true,
+        "message_count": 4
+      }
+    },
+    {
+      "name": "Chat API",
+      "success": false,
+      "details": {},
+      "skipped": true
+    }
+  ],
+  "summary": {
+    "total": 5,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 1
+  }
+}
