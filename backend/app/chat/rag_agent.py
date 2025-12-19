@@ -17,10 +17,16 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 import uuid
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from app.core.config import settings
+from app.utils.llm_utils import get_chat_llm
+from app.utils.context_utils import assemble_context, extract_sources
+from app.core.constants import (
+    RAG_AGENT_SYSTEM_PROMPT,
+    MAX_CONVERSATION_HISTORY,
+    DEFAULT_TOP_K,
+    DEFAULT_CONTEXT_MAX_LENGTH
+)
 from app.nodes.retrieval import search_knowledge_base
 from app.nodes.ambiguity import ambiguity_detection_node
 from app.graph.state import AgentState
@@ -33,7 +39,7 @@ class ConversationMemory:
     Stores message history and provides context for multi-turn conversations.
     """
 
-    def __init__(self, max_history: int = 10):
+    def __init__(self, max_history: int = MAX_CONVERSATION_HISTORY):
         """
         Initialize conversation memory.
 
@@ -100,44 +106,16 @@ class ConversationalRAGAgent:
     - Sprint 3: Conversational interface with citations
     """
 
-    def __init__(self, model: str = "nvidia/nemotron-3-nano-30b-a3b:free"):
+    def __init__(self, model: Optional[str] = None):
         """
         Initialize the conversational RAG agent.
 
         Args:
-            model: LLM model to use for generating responses
+            model: Optional LLM model override (uses default from config if not provided)
         """
         self.model = model
-        self.llm = ChatOpenAI(
-            model=model,
-            api_key=settings.OPENROUTER_API_KEY,
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": "https://csa-aiaas-platform.local",
-                "X-Title": "CSA AIaaS Platform - Chat"
-            },
-            temperature=0.7  # Slightly creative for conversational responses
-        )
-
-        # System prompt for the agent
-        self.system_prompt = """You are an expert AI assistant for Civil, Structural, and Architectural (CSA) engineering at Shiva Engineering Services.
-
-Your role:
-- Answer engineering questions accurately using the provided knowledge base
-- Cite sources when using information from the knowledge base
-- Ask for clarification when information is missing or ambiguous
-- Be concise but thorough in explanations
-- Use technical terminology appropriately
-- Always prioritize safety and code compliance
-
-When answering:
-1. Use information from the CONTEXT section if provided
-2. Cite sources using [Source: document_name]
-3. If information is not in the context, say so clearly
-4. For calculations, show step-by-step workings
-5. For code requirements, cite the specific clause/section
-
-Remember: You are helping professional engineers make critical decisions. Accuracy and safety are paramount."""
+        self.llm = get_chat_llm(model=model)
+        self.system_prompt = RAG_AGENT_SYSTEM_PROMPT
 
     def chat(
         self,
@@ -176,20 +154,17 @@ Remember: You are helping professional engineers make critical decisions. Accura
         # Step 2: Retrieve relevant knowledge using Sprint 2 logic
         retrieved_chunks = search_knowledge_base(
             query=user_message,
-            top_k=5,
+            top_k=DEFAULT_TOP_K,
             discipline=discipline
         )
 
         metadata['retrieved_chunks'] = len(retrieved_chunks)
 
-        # Step 3: Prepare context from retrieved chunks
-        context = self._prepare_context(retrieved_chunks)
+        # Step 3: Prepare context from retrieved chunks using centralized utility
+        context = assemble_context(retrieved_chunks, max_length=DEFAULT_CONTEXT_MAX_LENGTH, include_citations=True)
 
-        # Track sources
-        for chunk in retrieved_chunks:
-            source_name = chunk.get('metadata', {}).get('source_document_name', 'Unknown')
-            if source_name not in metadata['sources']:
-                metadata['sources'].append(source_name)
+        # Track sources using centralized utility
+        metadata['sources'] = extract_sources(retrieved_chunks)
 
         # Step 4: Build conversation messages
         messages = [SystemMessage(content=self.system_prompt)]
@@ -259,46 +234,6 @@ Note: No specific information found in the knowledge base. Please answer based o
             print(f"[CHAT] Ambiguity detection error: {e}")
             return {'is_ambiguous': False, 'question': None}
 
-    def _prepare_context(self, chunks: List[Dict], max_length: int = 2000) -> str:
-        """
-        Prepare context string from retrieved chunks.
-
-        Args:
-            chunks: Retrieved knowledge chunks
-            max_length: Maximum context length
-
-        Returns:
-            Formatted context string with citations
-        """
-        if not chunks:
-            return ""
-
-        context_parts = []
-        current_length = 0
-
-        for i, chunk in enumerate(chunks, 1):
-            chunk_text = chunk.get('chunk_text', '')
-            metadata = chunk.get('metadata', {})
-            source_doc = metadata.get('source_document_name', 'Unknown')
-            section = metadata.get('section', '')
-            similarity = chunk.get('similarity', 0)
-
-            # Format chunk with citation
-            citation = f"\n[Source {i}: {source_doc}"
-            if section:
-                citation += f", {section}"
-            citation += f" (Relevance: {similarity:.2f})]\n"
-
-            chunk_with_citation = f"{citation}{chunk_text}\n"
-
-            # Check length
-            if current_length + len(chunk_with_citation) > max_length:
-                break
-
-            context_parts.append(chunk_with_citation)
-            current_length += len(chunk_with_citation)
-
-        return "\n".join(context_parts)
 
 
 # Global conversation memory store (in-memory for now)

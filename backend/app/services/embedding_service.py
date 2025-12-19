@@ -8,10 +8,14 @@ Supports multiple embedding models with configurable dimensions.
 Default: OpenAI text-embedding-3-large (1536 dimensions)
 """
 
-from typing import List, Optional, Dict
-import os
-from langchain_openai import OpenAIEmbeddings
-from app.core.config import settings
+from typing import List, Dict
+from app.utils.llm_utils import get_embeddings_client
+from app.core.constants import (
+    DEFAULT_EMBEDDING_MODEL,
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_BATCH_SIZE,
+    EMBEDDING_COST_MAP
+)
 
 
 class EmbeddingService:
@@ -24,9 +28,9 @@ class EmbeddingService:
 
     def __init__(
         self,
-        model: str = "text-embedding-3-large",
-        dimensions: int = 1536,
-        batch_size: int = 100
+        model: str = DEFAULT_EMBEDDING_MODEL,
+        dimensions: int = EMBEDDING_DIMENSIONS,
+        batch_size: int = EMBEDDING_BATCH_SIZE
     ):
         """
         Initialize the embedding service.
@@ -43,19 +47,8 @@ class EmbeddingService:
         self.dimensions = dimensions
         self.batch_size = batch_size
 
-        # Initialize embeddings client using OpenRouter
-        # OpenRouter is compatible with OpenAI's API, so we use OpenAIEmbeddings
-        # with a custom base_url
-        self.embeddings_client = OpenAIEmbeddings(
-            model=model,
-            dimensions=dimensions,  # Specify dimensions to ensure correct output
-            openai_api_key=settings.OPENROUTER_API_KEY,
-            openai_api_base="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": "https://csa-aiaas-platform.local",
-                "X-Title": "CSA AIaaS Platform - Embedding Service"
-            }
-        )
+        # Initialize embeddings client using centralized utility
+        self.embeddings_client = get_embeddings_client(model=model, dimensions=dimensions)
 
     def generate_embedding(self, text: str) -> List[float]:
         """
@@ -153,19 +146,14 @@ class EmbeddingService:
         Returns:
             Cost estimate as a string
         """
-        cost_map = {
-            "text-embedding-3-large": "$0.13 per 1M tokens",
-            "text-embedding-3-small": "$0.02 per 1M tokens",
-            "text-embedding-ada-002": "$0.10 per 1M tokens"
-        }
-        return cost_map.get(self.model, "Cost varies by provider")
+        return EMBEDDING_COST_MAP.get(self.model, "Cost varies by provider")
 
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 
-def embed_text(text: str, model: str = "text-embedding-3-large") -> List[float]:
+def embed_text(text: str, model: str = DEFAULT_EMBEDDING_MODEL) -> List[float]:
     """
     Convenience function to embed a single text.
 
@@ -182,8 +170,8 @@ def embed_text(text: str, model: str = "text-embedding-3-large") -> List[float]:
 
 def embed_texts_batch(
     texts: List[str],
-    model: str = "text-embedding-3-large",
-    batch_size: int = 100,
+    model: str = DEFAULT_EMBEDDING_MODEL,
+    batch_size: int = EMBEDDING_BATCH_SIZE,
     show_progress: bool = True
 ) -> List[List[float]]:
     """

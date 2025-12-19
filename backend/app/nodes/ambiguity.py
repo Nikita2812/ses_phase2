@@ -14,12 +14,11 @@ Critical Requirements:
 """
 
 import json
-import os
 from typing import Dict, Any
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from app.graph.state import AgentState
-from app.core.config import settings
+from app.utils.llm_utils import get_ambiguity_detection_llm
+from app.core.constants import AMBIGUITY_DETECTION_SYSTEM_PROMPT
 
 
 def ambiguity_detection_node(state: AgentState) -> AgentState:
@@ -42,51 +41,11 @@ def ambiguity_detection_node(state: AgentState) -> AgentState:
         ValueError: If LLM response is not valid JSON
     """
 
-    # Initialize LLM using OpenRouter
-    if not settings.OPENROUTER_API_KEY:
-        raise ValueError(
-            "No OpenRouter API key found. Set OPENROUTER_API_KEY in .env"
-        )
-
-    llm = ChatOpenAI(
-        model=settings.OPENROUTER_MODEL,
-        temperature=0.0,  # Strict deterministic output for safety checks
-        api_key=settings.OPENROUTER_API_KEY,
-        base_url="https://openrouter.ai/api/v1",
-        default_headers={
-            "HTTP-Referer": "https://csa-aiaas-platform.local",
-            "X-Title": "CSA AIaaS Platform"
-        }
-    )
+    # Initialize LLM using centralized utility
+    llm = get_ambiguity_detection_llm()
 
     # Extract input data from state
     input_data = state["input_data"]
-
-    # Construct the exact prompt structure as specified
-    system_prompt = """You are a Lead Engineer at a Civil & Structural Architecture firm.
-
-Your job is to identify missing inputs, conflicting requirements, or ambiguous specifications in engineering requests.
-
-DO NOT SOLVE THE PROBLEM. Only identify issues.
-
-You must respond with ONLY a valid JSON object in this exact format:
-{
-  "is_ambiguous": true or false,
-  "question": "your clarification question here" or null
-}
-
-Rules:
-1. Set is_ambiguous to true if ANY of these conditions exist:
-   - Missing critical parameters (dimensions, loads, material specs, soil data)
-   - Conflicting requirements
-   - Ambiguous specifications
-   - Insufficient data for safe engineering decisions
-
-2. If is_ambiguous is true, formulate a clear, specific question to resolve the ambiguity
-
-3. If is_ambiguous is false, set question to null
-
-4. Your response must be ONLY the JSON object, nothing else"""
 
     user_prompt = f"""User Input:
 {json.dumps(input_data, indent=2)}
@@ -95,7 +54,7 @@ Analyze this input and determine if there are any ambiguities, missing data, or 
 
     # Query the LLM
     messages = [
-        SystemMessage(content=system_prompt),
+        SystemMessage(content=AMBIGUITY_DETECTION_SYSTEM_PROMPT),
         HumanMessage(content=user_prompt)
     ]
 

@@ -5,13 +5,10 @@ Sprint 1: The Neuro-Skeleton
 Supabase connection configuration and helper functions.
 """
 
-import os
 from typing import Optional
 from supabase import create_client, Client
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
+from app.core.config import settings
+from app.core.constants import AUDIT_LOG_DISABLED_WARNING, AUDIT_LOG_SKIPPED_PREFIX
 
 
 class DatabaseConfig:
@@ -24,14 +21,14 @@ class DatabaseConfig:
 
     def __init__(self):
         """Initialize database configuration from environment variables."""
-        self.supabase_url: str = os.getenv("SUPABASE_URL", "")
-        self.supabase_key: str = os.getenv("SUPABASE_ANON_KEY", "")
+        self.supabase_url: str = settings.SUPABASE_URL
+        self.supabase_key: str = settings.SUPABASE_ANON_KEY
         self._client: Optional[Client] = None
         self._connection_available: bool = True
 
         # Check if credentials are provided
         if not self.supabase_url or not self.supabase_key:
-            print("WARNING: Supabase credentials not configured. Audit logging will be disabled.")
+            print(AUDIT_LOG_DISABLED_WARNING)
             self._connection_available = False
 
     @property
@@ -82,7 +79,7 @@ class DatabaseConfig:
         """
         # Skip if database is not available
         if not self._connection_available:
-            print(f"[AUDIT LOG - SKIPPED] {user_id} | {action}")
+            print(f"{AUDIT_LOG_SKIPPED_PREFIX} {user_id} | {action}")
             return
 
         try:

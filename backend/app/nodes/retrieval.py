@@ -19,6 +19,8 @@ from typing import List, Dict, Optional
 from app.graph.state import AgentState
 from app.services.embedding_service import EmbeddingService
 from app.core.database import get_db
+from app.utils.context_utils import assemble_context, format_chunk_info
+from app.core.constants import DEFAULT_TOP_K, DEFAULT_SIMILARITY_THRESHOLD, DEFAULT_CONTEXT_MAX_LENGTH
 
 
 class RetrievalService:
@@ -31,8 +33,8 @@ class RetrievalService:
     def __init__(
         self,
         embedding_model: str = "text-embedding-3-large",
-        top_k: int = 5,
-        similarity_threshold: float = 0.7
+        top_k: int = DEFAULT_TOP_K,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD
     ):
         """
         Initialize the retrieval service.
@@ -172,7 +174,7 @@ class RetrievalService:
             print(f"[RETRIEVAL] Fallback search also failed: {e}")
             return []
 
-    def assemble_context(self, chunks: List[Dict], max_length: int = 2000) -> str:
+    def assemble_context(self, chunks: List[Dict], max_length: int = DEFAULT_CONTEXT_MAX_LENGTH) -> str:
         """
         Assemble retrieved chunks into a cohesive context string.
 
@@ -183,35 +185,8 @@ class RetrievalService:
         Returns:
             Assembled context string with citations
         """
-        if not chunks:
-            return ""
-
-        context_parts = []
-        current_length = 0
-
-        for i, chunk in enumerate(chunks, 1):
-            chunk_text = chunk.get('chunk_text', '')
-            metadata = chunk.get('metadata', {})
-            source_doc = metadata.get('source_document_name', 'Unknown')
-            section = metadata.get('section', '')
-            similarity = chunk.get('similarity', 0)
-
-            # Format chunk with citation
-            citation = f"[Source {i}: {source_doc}"
-            if section:
-                citation += f", {section}"
-            citation += f" (relevance: {similarity:.2f})]"
-
-            chunk_with_citation = f"{citation}\n{chunk_text}\n"
-
-            # Check if adding this chunk exceeds max length
-            if current_length + len(chunk_with_citation) > max_length:
-                break
-
-            context_parts.append(chunk_with_citation)
-            current_length += len(chunk_with_citation)
-
-        return "\n".join(context_parts)
+        # Delegate to centralized utility
+        return assemble_context(chunks, max_length, include_citations=True)
 
 
 # Global retrieval service instance
@@ -313,18 +288,16 @@ def retrieval_node(state: AgentState) -> AgentState:
     )
 
     if chunks:
-        # Assemble context from chunks
-        context = retrieval_service.assemble_context(chunks, max_length=2000)
+        # Assemble context from chunks using centralized utility
+        context = retrieval_service.assemble_context(chunks, max_length=DEFAULT_CONTEXT_MAX_LENGTH)
         state["retrieved_context"] = context
 
         print(f"[RETRIEVAL] Retrieved {len(chunks)} relevant chunks")
         print(f"[RETRIEVAL] Context length: {len(context)} characters")
 
-        # Log chunk sources
-        for i, chunk in enumerate(chunks, 1):
-            source = chunk.get('metadata', {}).get('source_document_name', 'Unknown')
-            similarity = chunk.get('similarity', 0)
-            print(f"[RETRIEVAL]   {i}. {source} (similarity: {similarity:.3f})")
+        # Log chunk sources using centralized utility
+        chunk_info = format_chunk_info(chunks)
+        print(f"[RETRIEVAL] Sources:\n{chunk_info}")
     else:
         print("[RETRIEVAL] No relevant chunks found in knowledge base")
         state["retrieved_context"] = ""
@@ -338,7 +311,7 @@ def retrieval_node(state: AgentState) -> AgentState:
 
 def search_knowledge_base(
     query: str,
-    top_k: int = 5,
+    top_k: int = DEFAULT_TOP_K,
     discipline: Optional[str] = None
 ) -> List[Dict]:
     """
