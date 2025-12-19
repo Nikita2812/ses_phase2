@@ -1,0 +1,42 @@
+# CSA AIaaS Platform - Python Dependencies
+# Sprint 1: The Neuro-Skeleton
+# Compatible with Python 3.11 - 3.13
+
+# Core Framework
+fastapi>=0.104.0,<0.115.0
+uvicorn[standard]>=0.24.0,<0.32.0
+pydantic>=2.5.0,<3.0.0
+python-dotenv>=1.0.0
+
+# LangChain & LangGraph (updated for compatibility)
+langgraph>=0.0.55
+langchain>=0.1.0
+langchain-core>=0.1.9
+langchain-openai>=0.0.5  # Used for OpenRouter API compatibility
+
+# LLM Providers (OpenRouter via OpenAI-compatible API)
+# Note: We use langchain-openai with OpenRouter's base_url
+
+# Database (Supabase uses REST API, no psycopg2 needed)
+supabase>=2.3.0
+# Note: psycopg2-binary removed - not needed for Supabase REST API
+# If you need direct PostgreSQL access later, use: psycopg2-binary>=2.9.9 with Python 3.11
+
+# HTTP & Networking
+httpx>=0.25.0
+requests>=2.31.0
+
+# Data Processing
+pydantic-settings>=2.1.0
+
+# Testing (for future use)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# Code Quality (optional - install separately if needed)
+# black>=23.12.0
+# flake8>=6.1.0
+# mypy>=1.7.0
+
+# Production Server (optional)
+# gunicorn>=21.2.0
