@@ -1,5 +1,5 @@
 # CSA AIaaS Platform - Python Dependencies
-# Sprint 1: The Neuro-Skeleton
+# Sprint 1 & 2: The Neuro-Skeleton + The Memory Implantation
 # Compatible with Python 3.11 - 3.13
 
 # Core Framework
@@ -28,6 +28,11 @@ requests>=2.31.0
 
 # Data Processing
 pydantic-settings>=2.1.0
+
+# Sprint 2: Document Processing & ETL
+PyPDF2>=3.0.0  # PDF text extraction
+# python-docx>=1.1.0  # Optional: DOCX support (uncomment if needed)
+# unstructured>=0.10.0  # Optional: Advanced document processing (production upgrade)
 
 # Testing (for future use)
 pytest>=7.4.0

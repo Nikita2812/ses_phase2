@@ -1,0 +1,70 @@
+{
+  "timestamp": "2025-12-19T18:17:31.020041",
+  "tests": [
+    {
+      "name": "Configuration Check",
+      "success": true,
+      "details": {
+        "OPENROUTER_API_KEY": true,
+        "OPENROUTER_MODEL": true
+      }
+    },
+    {
+      "name": "Document Processor",
+      "success": true,
+      "details": {
+        "chars_extracted": 308,
+        "metadata": {
+          "extraction_method": "direct_read",
+          "encoding": "utf-8",
+          "file_name": "test_document.txt",
+          "file_path": "/home/nikita/Documents/The LinkAI/new_proj/backend/test_document.txt",
+          "file_format": "TXT",
+          "file_size_bytes": 308,
+          "extraction_date": "2025-12-19T18:17:31.020350"
+        }
+      }
+    },
+    {
+      "name": "Text Chunker",
+      "success": true,
+      "details": {
+        "chunks_created": 1,
+        "avg_chunk_length": 444.0
+      }
+    },
+    {
+      "name": "Embedding Service",
+      "success": true,
+      "details": {
+        "model": "text-embedding-3-large",
+        "dimensions": 1536,
+        "expected_dimensions": 1536
+      }
+    },
+    {
+      "name": "ETL Pipeline",
+      "success": true,
+      "details": {
+        "success": true,
+        "document_id": "ada4a399-8841-45c7-85d1-94399c0e9a9b",
+        "chunks_created": 0,
+        "error": null
+      }
+    },
+    {
+      "name": "Vector Search",
+      "success": true,
+      "details": {
+        "query": "What is the minimum concrete grade for coastal areas?",
+        "results_count": 0
+      }
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 0
+  }
+}
