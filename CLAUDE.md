@@ -4,172 +4,447 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a **documentation-only repository** containing technical specifications for a CSA (Civil & Structural Architecture) Engineering AI Automation System. It does not contain executable code, but rather comprehensive markdown documentation describing the architecture, workflows, and requirements for building an AI-powered platform for engineering automation.
+This repository contains the **CSA AIaaS Platform** - an AI-powered automation system for Civil, Structural, and Architectural engineering. The project combines comprehensive documentation in [documents/](documents/) with a working Python backend implementation.
+
+**Key Components**:
+- **Documentation**: 46+ markdown files detailing engineering workflows, architecture, and specifications
+- **Backend**: Python FastAPI + LangGraph implementation with conversational RAG capabilities
+- **Client**: Shiva Engineering Services (SES)
+- **Timeline**: 12-month implementation (Go-Live: December 2026)
 
 ## Project Structure
 
-The repository contains 46 markdown files organized into several categories:
+```
+.
+├── backend/                 # Python backend implementation
+│   ├── app/
+│   │   ├── api/            # FastAPI chat routes
+│   │   ├── chat/           # Conversational RAG agent
+│   │   ├── core/           # Config, database, constants
+│   │   ├── etl/            # Document processing pipeline
+│   │   ├── graph/          # LangGraph state machine
+│   │   ├── nodes/          # Workflow nodes (ambiguity, retrieval, execution)
+│   │   ├── services/       # Embedding generation
+│   │   └── utils/          # Text chunking, LLM utilities
+│   ├── tests/              # Test suite
+│   ├── main.py             # FastAPI entry point
+│   ├── init.sql            # Sprint 1 database schema
+│   └── init_sprint2.sql    # Sprint 2 schema (vector DB)
+├── documents/              # Specification documents
+│   ├── CSA.md             # CSA department operations overview
+│   ├── CSA2.md            # AI automation workflows
+│   └── CSA_AIaaS_Platform_Implementation_Guide.md  # Sprint guide
+└── SPRINT*.md             # Sprint implementation summaries
+```
 
-### Core Specification Documents
-- [CSA.md](CSA.md) - Comprehensive overview of CSA Department operations, workflows, and interfaces
-- [CSA2.md](CSA2.md) - AI Automation Master Specification detailing universal workflows for Civil, Structural, and Architectural modules
+## Tech Stack
 
-### Architecture Documents
-- [MarkdownFile1.md](MarkdownFile1.md) - Enhanced Spec Part 1: Comparative Architecture Analysis (General AI vs. Specialized CSA AI)
-- [Final_MarkdownFile.md](Final_MarkdownFile.md) - AIaaS Platform architecture and tech stack blueprint
-- [CSA_AIaaS_Platform_Implementation_Guide.md](CSA_AIaaS_Platform_Implementation_Guide.md) - Sprint 1 implementation guide for the CSA AIaaS Platform, including detailed technical setup, database schema, and LangGraph orchestration
+**Backend**:
+- **Language**: Python 3.11-3.13
+- **Framework**: FastAPI with Uvicorn
+- **Orchestration**: LangGraph (StateGraph) + LangChain
+- **Database**: Supabase (PostgreSQL + pgvector)
+- **Validation**: Pydantic V2
+- **LLM**: OpenRouter API (OpenAI-compatible)
+- **Document Processing**: PyPDF2
+- **Vector Search**: pgvector with IVFFlat indexing
 
-### Project Context
-- [MOM_Engineering_Automation_Kickoff_Dec02_2025.md](MOM_Engineering_Automation_Kickoff_Dec02_2025.md) - Meeting minutes from the December 2025 kickoff meeting with Shiva Engineering Services, detailing project scope, timeline, and implementation roadmap
+**Models**:
+- Default: `nvidia/nemotron-3-nano-30b-a3b:free` (chat)
+- Embeddings: `text-embedding-3-large` (1536 dimensions)
 
-### Additional Specifications
-- MarkdownFile2-21.md - Various detailed specification documents
-- Markdown1-15.md - Supporting documentation
-- Final1-7_MarkdownFile.md - Finalized specification segments
+## Development Commands
+
+### Initial Setup
+
+```bash
+cd backend
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your credentials:
+# - SUPABASE_URL
+# - SUPABASE_ANON_KEY
+# - OPENROUTER_API_KEY
+
+# Initialize database
+# Run init.sql in Supabase SQL Editor
+# Run init_sprint2.sql for vector DB tables
+```
+
+### Running the Application
+
+```bash
+# Development mode (auto-reload)
+python main.py
+
+# Or with uvicorn directly
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**API URLs**:
+- API: http://localhost:8000
+- Docs: http://localhost:8000/docs
+- Chat UI: http://localhost:8000/chat
+- Health: http://localhost:8000/health
+
+### Testing
+
+```bash
+# Run individual test modules
+python tests/test_ambiguity_detection.py
+python tests/test_graph_routing.py
+
+# Or use pytest (if installed)
+pytest tests/
+```
+
+### Document Ingestion
+
+```bash
+# Ingest all documents from documents/ directory
+python ingest_all_documents_auto.py
+
+# Ingest specific documents
+python ingest_example.py
+```
+
+### Phase 2: Calculation Engine (NEW)
+
+```bash
+# Run Phase 2 Sprint 1 demonstration
+python demo_phase2_sprint1.py
+
+# Run foundation designer tests
+pytest tests/unit/engines/test_foundation_designer.py -v
+
+# View engine registry
+python -m app.engines.registry
+
+# Interactive design session
+python
+>>> from app.engines.registry import invoke_engine
+>>> result = invoke_engine("civil_foundation_designer_v1", "design_isolated_footing", {...})
+```
+
+## Core Architecture
+
+### LangGraph Workflow (State Machine)
+
+The system uses a conditional state machine with three main stages:
+
+```
+START
+  ↓
+ambiguity_detection_node (Sprint 1)
+  ├─ IF ambiguous → END (return clarification question)
+  └─ ELSE → retrieval_node (Sprint 2)
+              ↓
+            execution_node (placeholder)
+              ↓
+            END
+```
+
+### AgentState Schema
+
+The backbone of the workflow is the `AgentState` TypedDict defined in [backend/app/graph/state.py](backend/app/graph/state.py):
+
+```python
+class AgentState(TypedDict):
+    task_id: str                          # Unique task ID
+    input_data: Dict[str, Any]            # User input
+    retrieved_context: Optional[str]      # From knowledge base
+    ambiguity_flag: bool                  # Safety flag
+    clarification_question: Optional[str] # For user
+    risk_score: Optional[float]           # 0.0-1.0
+```
+
+**CRITICAL**: Never add fields beyond these six. This schema is fixed by design.
+
+### Three-Sprint Architecture
+
+**Sprint 1 ("The Neuro-Skeleton")**: ✅ Complete
+- Infrastructure and configuration
+- Ambiguity detection node (safety-first)
+- Database schema (projects, deliverables, audit_log, users)
+- FastAPI backend with `/api/v1/execute` endpoint
+
+**Sprint 2 ("The Memory Implantation")**: ✅ Complete
+- ETL pipeline for document processing
+- Vector database (`knowledge_chunks` table)
+- Embedding generation service
+- Semantic search with pgvector
+
+**Sprint 3 ("The Voice")**: ✅ Complete
+- Conversational RAG agent
+- Chat API (6 endpoints)
+- Web-based chat interface
+- Citation tracking
+
+### Phase 2 Architecture (NEW - In Progress)
+
+**Phase 2 Sprint 1 ("The Math Engine")**: ✅ Complete
+- Foundation design calculation engine (`design_isolated_footing`)
+- Schedule optimization (`optimize_schedule`)
+- Engine registry for dynamic function lookup
+- LangGraph integration (`calculation_execution_node`)
+- 19 comprehensive unit tests (100% passing)
+
+**Phase 2 Sprint 2 ("The Configuration Layer")**: Pending
+- Database schema for workflow definitions
+- JSONB workflow configuration storage
+
+**Phase 2 Sprint 3 ("The Orchestrator")**: Pending
+- Dynamic workflow interpreter
+- Database-driven task execution
+
+**Phase 2 Sprint 4 ("The Safety Valve")**: Pending
+- Risk assessment integration
+- Human-in-the-Loop (HITL) workflow
+
+## Key Patterns and Conventions
+
+### Safety-First Philosophy
+
+The **Ambiguity Detection Node** is the most critical component. It:
+- Never guesses when data is missing
+- Stops workflow if issues are detected
+- Always asks clarification questions
+- Uses strict JSON output format
+
+**Location**: [backend/app/nodes/ambiguity.py](backend/app/nodes/ambiguity.py)
+
+### Audit Logging
+
+Every action is logged to the `audit_log` table for zero-trust security. This is non-negotiable.
+
+**Helper**: `DatabaseConfig.log_audit()` in [backend/app/core/database.py](backend/app/core/database.py)
+
+### Strict Typing
+
+- All functions use type hints
+- Pydantic V2 for request/response validation
+- TypedDict for state schemas
+- No `Any` types unless necessary
+
+### LLM Integration
+
+The system uses OpenRouter API (OpenAI-compatible) for all LLM calls:
+- Chat completion: [backend/app/utils/llm_utils.py](backend/app/utils/llm_utils.py)
+- Embeddings: [backend/app/services/embedding_service.py](backend/app/services/embedding_service.py)
+- Context preparation: [backend/app/utils/context_utils.py](backend/app/utils/context_utils.py)
+
+## Database Schema
+
+### Core Tables (Sprint 1)
+- `projects` - Engineering project metadata
+- `deliverables` - DBR, BOQ, drawings tracking
+- `audit_log` - Security audit trail
+- `users` - User management
+
+### Vector DB Tables (Sprint 2)
+- `documents` - Source document metadata
+- `knowledge_chunks` - Vector embeddings (VECTOR(1536)) with JSONB metadata
+
+### Key Functions
+- `search_knowledge_chunks(query_embedding, limit, filters)` - Semantic search
+- `get_document_stats()` - Knowledge base statistics
 
 ## Domain Context
 
-This system is designed for **CSA Engineering** which includes:
+### CSA Engineering Disciplines
+- **Civil**: Foundations, earthworks, underground structures
+- **Structural**: RCC design, steel structures, PEB
+- **Architectural**: Layouts, finishes, walls, lintels
 
-**Core Disciplines:**
-- Civil Engineering (foundations, earthworks, underground structures)
-- Structural Engineering (RCC design, steel structures, PEB)
-- Architectural Engineering (layouts, finishes, walls, lintels)
-
-**Key Workflows:**
-1. FEED-Level CSA (preliminary design, feasibility)
-2. Basic Engineering (Design Basis Reports, architectural conceptualization, structural analysis)
-3. Detailed Engineering (foundation design, RCC/steel superstructure, BOQ/MTO generation)
-4. Tendering and Quality Control
-
-**Critical Technical Concepts:**
-- **STAAD/ETABS**: Structural analysis software for calculating member forces and reactions
-- **BOQ/MTO**: Bill of Quantities / Material Take-Off - quantity extraction from drawings for tendering
-- **DBR**: Design Basis Report - document that fixes all engineering assumptions
+### Critical Terminology
+- **STAAD/ETABS**: Structural analysis software
+- **BOQ/MTO**: Bill of Quantities / Material Take-Off
+- **DBR**: Design Basis Report
 - **RCC**: Reinforced Cement Concrete
 - **SBC**: Safe Bearing Capacity (soil parameter)
-- **HITL**: Human-in-the-Loop review for high-risk decisions
+- **HITL**: Human-in-the-Loop review
 
-## Architectural Paradigm
+### Key Workflows
+1. FEED-Level CSA (preliminary design)
+2. Basic Engineering (DBR, architectural conceptualization)
+3. Detailed Engineering (foundation design, BOQ/MTO)
+4. Tendering and Quality Control
 
-The documentation describes a shift from traditional AI automation to **cognitive augmentation**:
+## Common Tasks
 
-**Target Architecture:**
-- Unified reasoning core with domain specialization in CSA engineering
-- Deep, curated knowledge base (Vector DB) with CSA-specific data
-- Dynamic, continuous learning from every project
-- Proactive, goal-oriented task handling with risk-based autonomy
-- Schema-based extensibility without new code
+### Adding a New LangGraph Node
 
-**Confirmed Tech Stack (from Implementation Guide):**
-- **Backend**: Python 3.11+, FastAPI, LangGraph (StateGraph), LangChain
-- **Database**: Supabase (PostgreSQL + pgvector for vector search)
-- **Validation**: Pydantic V2 (strict typing)
-- **LLM Integration**: OpenAI API / Anthropic API (Claude 3.5 Sonnet / GPT-4)
-- **Orchestration**: LangGraph + Apache Airflow (for workflow automation)
-- **Infrastructure**: Kubernetes with auto-scaling
-- **Frontend**: Next.js + TypeScript + TailwindCSS
-- **Configuration**: python-dotenv for environment management
+1. Create node file in `backend/app/nodes/`
+2. Implement function signature: `def my_node(state: AgentState) -> AgentState`
+3. Update state and return it
+4. Register in `backend/app/graph/main_graph.py`
+5. Add conditional edges if needed
 
-## Working with This Repository
+### Modifying the RAG Agent
 
-### Understanding the Specifications
+The conversational RAG agent is in [backend/app/chat/rag_agent.py](backend/app/chat/rag_agent.py). Key methods:
+- `chat()` - Main entry point for chat interactions
+- `_check_ambiguity()` - Integrates Sprint 1 ambiguity detection
+- `_prepare_context()` - Formats retrieved chunks for LLM
 
-When asked to explain or work with these documents:
-1. Recognize this describes an AI system for **Civil & Structural engineering automation**
-2. The specifications detail both business workflows (what engineers do) and technical architecture (how to build the AI system)
-3. Documents are interdependent - [CSA.md](CSA.md) provides domain context, [CSA2.md](CSA2.md) provides calculation workflows, [MarkdownFile1.md](MarkdownFile1.md) provides architectural philosophy
+### Adding New API Endpoints
 
-### Document Relationships
+Chat routes are in [backend/app/api/chat_routes.py](backend/app/api/chat_routes.py). Register new routes in `main.py`:
 
-The documentation follows a logical progression:
+```python
+from app.api.chat_routes import chat_router
+app.include_router(chat_router, prefix="/api/v1")
+```
 
-1. **Domain Understanding**: Start with [CSA.md](CSA.md) for business context and workflows
-2. **Calculation Logic**: Review [CSA2.md](CSA2.md) for detailed engineering calculation workflows
-3. **Architectural Vision**: Read [MarkdownFile1.md](MarkdownFile1.md) for the shift from automation to cognitive augmentation
-4. **Platform Architecture**: Study [Final_MarkdownFile.md](Final_MarkdownFile.md) for AIaaS platform design
-5. **Implementation Details**: Follow [CSA_AIaaS_Platform_Implementation_Guide.md](CSA_AIaaS_Platform_Implementation_Guide.md) for sprint-based development
-6. **Project Context**: Reference [MOM_Engineering_Automation_Kickoff_Dec02_2025.md](MOM_Engineering_Automation_Kickoff_Dec02_2025.md) for scope, stakeholders, and timeline
+### Ingesting New Documents
 
-### Key Bottlenecks Described
+Use the ETL pipeline in [backend/app/etl/](backend/app/etl/):
+1. Add documents to a directory
+2. Run `ingest_all_documents_auto.py` or use `ETLPipeline.process_directory()`
+3. Documents are chunked, embedded, and stored in `knowledge_chunks`
 
-The system aims to solve:
-- Manual RCC foundation grouping (70-80% time reduction potential)
-- BOQ extraction from drawings (manual counting takes 15-20 days)
-- Late multi-discipline coordination causing site rework
-- Tender documentation cycle time
-- Drawing validation and quality control
+### Using the Calculation Engine (Phase 2)
 
-### Implementation Context
+The foundation design engine is in [backend/app/engines/foundation/](backend/app/engines/foundation/):
 
-Per the kickoff meeting minutes:
-- **Timeline**: 12-month implementation roadmap
-- **Client**: Shiva Engineering Services (SES)
-- **Development Team**: TheLinkAI
-- **First Deliverables**: Beginning of Month 3 (February 2026)
-- **Development Completion**: Months 8-9 (latest)
-- **Go-Live**: Month 12 (December 2026)
+```python
+from app.engines.registry import invoke_engine
 
-**Scope Inclusions:**
-- Complete engineering operation automation across all EPCM disciplines
-- Procurement and construction management documentation
-- Automated document generation (specifications, reports, BOQs)
-- Cross-discipline review automation
+# Design a foundation
+input_data = {
+    "axial_load_dead": 600.0,
+    "axial_load_live": 400.0,
+    "column_width": 0.4,
+    "column_depth": 0.4,
+    "safe_bearing_capacity": 200.0,
+    "concrete_grade": "M25",
+    "steel_grade": "Fe415"
+}
 
-**Scope Exclusions (Phase 1):**
-- 2D/3D drafting/modeling (AutoCAD, Revit, BIM)
-- Full ERP integration
-- Mobile applications
-- Fully autonomous agents without human validation
+# Step 1: Design
+initial_design = invoke_engine(
+    "civil_foundation_designer_v1",
+    "design_isolated_footing",
+    input_data
+)
 
-### Implementation Roadmap (Sprint-Based)
+# Step 2: Optimize
+final_design = invoke_engine(
+    "civil_foundation_designer_v1",
+    "optimize_schedule",
+    initial_design
+)
 
-The [CSA_AIaaS_Platform_Implementation_Guide.md](CSA_AIaaS_Platform_Implementation_Guide.md) contains the detailed technical implementation plan broken into sprints:
+print(f"Footing: {final_design['footing_length_final']}m × {final_design['footing_width_final']}m")
+print(f"Steel: {final_design['material_quantities']['steel_weight_total']} kg")
+```
 
-**Phase 1: "The Knowledgeable Assistant" (3 Sprints)**
-- **Sprint 1**: Infrastructure & Core Logic (Supabase, LangGraph, Ambiguity Detection)
-- **Sprint 2**: ETL & Vector DB (Knowledge ingestion, embeddings, chunking)
-- **Sprint 3**: RAG Agent & Conversational UI (Chat interface, retrieval-augmented generation)
+### Adding a New Calculation Engine
 
-**Critical Components:**
-- **Ambiguity Detection Node**: Core safety mechanism that prevents the AI from guessing when data is missing. Uses strict JSON output format and must be implemented from Day 1.
-- **AgentState Schema**: Backbone of LangGraph orchestration with required fields:
-  - `task_id`: str
-  - `input_data`: Dict
-  - `retrieved_context`: Optional[str]
-  - `ambiguity_flag`: bool
-  - `clarification_question`: Optional[str]
-  - `risk_score`: Optional[float]
-- **Audit Log**: Zero-trust security logging for all actions in the system
-- **Database Schema**: Foundation tables include `projects`, `deliverables`, `audit_log`, and `knowledge_chunks` (Sprint 2)
+1. Create engine file in `backend/app/engines/<discipline>/`
+2. Implement function with Pydantic input/output schemas
+3. Register in `backend/app/engines/registry.py`:
 
-**Development Philosophy:**
-- "Safety First" - baked into architecture from Day 1
-- Never guess when data is missing
-- Risk-based autonomy with Human-in-the-Loop (HITL) for high-risk decisions
-- Strict typing throughout (Pydantic V2)
-- Modular file structure for maintainability
+```python
+from app.engines.registry import engine_registry
+from app.engines.structural.my_new_engine import my_function
 
-### Making Changes
+engine_registry.register_tool(
+    tool_name="structural_beam_designer_v1",
+    function_name="design_steel_beam",
+    function=my_function,
+    description="Design steel beam per IS 800",
+    input_schema=BeamInput,
+    output_schema=BeamOutput
+)
+```
 
-When editing or creating new documentation:
-- Maintain technical accuracy regarding engineering calculations and code compliance (IS 456, IS 800, ACI, AISC)
-- Preserve the architectural vision of "cognitive augmentation" vs simple automation
-- Keep domain terminology consistent (use industry-standard CSA terms)
-- Reference relevant existing documents when adding new specifications
+4. Add task type mapping in `backend/app/nodes/calculation.py`
+5. Write unit tests in `tests/unit/engines/`
 
-### Documentation Standards
+## Important Notes
 
-The documents follow these conventions:
-- Technical specifications use numbered sections and subsections
-- Engineering calculations are presented as step-by-step iteration logic
-- Interdisciplinary interfaces are explicitly mapped
-- Risk factors and bottlenecks are clearly identified
-- Automation suggestions include expected benefits and challenges
+### Configuration Management
 
-## Notes
+All settings are centralized in [backend/app/core/config.py](backend/app/core/config.py). The `Settings` class uses `pydantic-settings` and validates on startup.
 
-- This is **not a git repository** - no version control is currently configured
-- No build, test, or deployment commands exist (documentation only)
-- The content describes a system to be built, not an implemented system
-- When referencing file paths, use the format: [filename.md](filename.md)
+**Critical**: Never hardcode API keys or credentials. Always use environment variables.
+
+### LangGraph State Updates
+
+When modifying state in nodes, always return a **new dict** with updates, not mutate the existing state:
+
+```python
+# CORRECT
+def my_node(state: AgentState) -> AgentState:
+    return {**state, "ambiguity_flag": True}
+
+# INCORRECT (mutation)
+def my_node(state: AgentState) -> AgentState:
+    state["ambiguity_flag"] = True  # Don't do this
+    return state
+```
+
+### Vector Search Performance
+
+The `knowledge_chunks` table uses IVFFlat indexing for fast similarity search. For production:
+- Rebuild index after large ingestions: `REINDEX INDEX idx_knowledge_chunks_embedding;`
+- Monitor search latency (target: <500ms)
+- Consider increasing `lists` parameter for indexes >100K chunks
+
+### Cost Optimization
+
+- Default model (`nvidia/nemotron-3-nano-30b-a3b:free`) is **FREE** on OpenRouter
+- Embedding model costs ~$0.13 per 1M tokens
+- Typical operation: ~$10/month for 10K-30K chunks
+
+## Troubleshooting
+
+### "No LLM API key found"
+Ensure `OPENROUTER_API_KEY` is set in `.env`
+
+### "Database connection test failed"
+1. Verify `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env`
+2. Confirm you ran both `init.sql` and `init_sprint2.sql`
+3. Check Supabase project is active
+
+### "LLM did not return valid JSON"
+The ambiguity node handles markdown-wrapped JSON automatically. If it persists:
+1. Check API key validity
+2. Verify OpenRouter service status
+3. Check model availability
+
+### Import Errors
+1. Ensure virtual environment is activated
+2. Reinstall dependencies: `pip install -r requirements.txt`
+3. Verify Python version: `python --version` (must be 3.11+)
+
+## Reference Documentation
+
+- **Implementation Guide**: [documents/CSA_AIaaS_Platform_Implementation_Guide.md](documents/CSA_AIaaS_Platform_Implementation_Guide.md)
+- **Sprint Summaries**: `SPRINT1_IMPLEMENTATION_SUMMARY.md`, `SPRINT2_IMPLEMENTATION_SUMMARY.md`, `SPRINT3_IMPLEMENTATION_SUMMARY.md`
+- **Architecture**: [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md)
+- **Testing Guide**: [backend/TESTING_GUIDE.md](backend/TESTING_GUIDE.md)
+- **Quick Reference**: [backend/QUICK_REFERENCE.md](backend/QUICK_REFERENCE.md)
+- **Meeting Minutes**: [documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md](documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md)
+
+## Development Philosophy
+
+From the implementation guide:
+
+> "If we don't build the Ambiguity Detection now, we will be patching it in later, which is messy. We are baking 'Safety First' into the code from Day 1."
+
+Core principles:
+1. **Safety First**: Never guess, always clarify
+2. **Strict Typing**: Prevent runtime errors
+3. **Modular Design**: Clear separation of concerns
+4. **Zero-Trust Security**: Audit everything
+5. **Performance**: Target <500ms retrieval latency
