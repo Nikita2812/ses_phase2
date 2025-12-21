@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiLayers, FiPlus, FiEdit, FiPlay, FiTrash2, FiAlertCircle } from 'react-icons/fi';
+import WorkflowCreateModal from '../components/WorkflowCreateModal';
 
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -238,82 +239,14 @@ export default function WorkflowsPage() {
       </div>
 
       {/* Create Workflow Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-4">Create New Workflow</h2>
-            <p className="text-gray-600 mb-6">
-              To create a workflow, use the backend API or Python scripts. The workflow schema requires:
-            </p>
-
-            <div className="space-y-4 mb-6">
-              <div className="bg-gray-50 p-4 rounded">
-                <h3 className="font-semibold mb-2">Required Fields:</h3>
-                <ul className="list-disc list-inside text-sm space-y-1 text-gray-700">
-                  <li><strong>deliverable_type</strong>: Unique workflow identifier (e.g., "foundation_design")</li>
-                  <li><strong>display_name</strong>: Human-readable name</li>
-                  <li><strong>discipline</strong>: civil, structural, or architectural</li>
-                  <li><strong>workflow_steps</strong>: Array of step definitions</li>
-                  <li><strong>input_schema</strong>: JSON schema for validation</li>
-                </ul>
-              </div>
-
-              <div className="bg-blue-50 p-4 rounded">
-                <h3 className="font-semibold text-blue-900 mb-2">Example Python Code:</h3>
-                <pre className="text-xs bg-white p-3 rounded overflow-x-auto">
-{`from app.services.schema_service import SchemaService
-from app.schemas.workflow.schema_models import *
-
-service = SchemaService()
-schema = service.create_schema(
-    DeliverableSchemaCreate(
-        deliverable_type="my_workflow",
-        display_name="My Custom Workflow",
-        discipline="civil",
-        workflow_steps=[...],
-        input_schema={"type": "object"},
-    ),
-    created_by="admin"
-)`}
-                </pre>
-              </div>
-
-              <div className="bg-green-50 p-4 rounded">
-                <h3 className="font-semibold text-green-900 mb-2">Or Use API:</h3>
-                <pre className="text-xs bg-white p-3 rounded overflow-x-auto">
-{`POST ${API_BASE_URL}/api/v1/workflows/
-Content-Type: application/json
-
-{
-  "deliverable_type": "my_workflow",
-  "display_name": "My Custom Workflow",
-  "discipline": "civil",
-  "workflow_steps": [...],
-  "input_schema": {"type": "object"}
-}`}
-                </pre>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                Close
-              </button>
-              <a
-                href={`${API_BASE_URL}/docs#/workflows/create_workflow_api_v1_workflows__post`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-primary"
-              >
-                Open API Docs
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+      <WorkflowCreateModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSuccess={(result) => {
+          console.log('Workflow created:', result);
+          fetchWorkflows(); // Refresh list
+        }}
+      />
     </div>
   );
 }

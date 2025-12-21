@@ -12,6 +12,14 @@ from app.core.config import settings
 from app.core.constants import AUDIT_LOG_DISABLED_WARNING, AUDIT_LOG_SKIPPED_PREFIX
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from psycopg2.extensions import register_adapter, AsIs
+from uuid import UUID
+
+# Register UUID adapter for psycopg2
+def adapt_uuid(uuid_val):
+    return AsIs(f"'{uuid_val}'")
+
+register_adapter(UUID, adapt_uuid)
 
 
 class DatabaseConfig:

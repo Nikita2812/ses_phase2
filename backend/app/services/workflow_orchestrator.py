@@ -36,6 +36,13 @@ from app.services.schema_service import SchemaService
 from app.engines.registry import invoke_engine
 from app.core.database import DatabaseConfig
 
+# Import streaming for real-time updates
+try:
+    from app.execution import get_streaming_manager, StreamEvent
+    STREAMING_AVAILABLE = True
+except ImportError:
+    STREAMING_AVAILABLE = False
+
 
 # ============================================================================
 # WORKFLOW ORCHESTRATOR
@@ -120,6 +127,22 @@ class WorkflowOrchestrator:
             started_at=started_at
         )
 
+        # Emit execution started event
+        if STREAMING_AVAILABLE:
+            try:
+                streaming_manager = get_streaming_manager()
+                streaming_manager.emit(str(execution_id), StreamEvent(
+                    type="execution_started",
+                    execution_id=str(execution_id),
+                    data={
+                        "deliverable_type": deliverable_type,
+                        "total_steps": len(schema.workflow_steps),
+                        "started_at": started_at.isoformat()
+                    }
+                ))
+            except Exception as e:
+                print(f"Warning: Failed to emit execution_started event: {e}")
+
         # Execute workflow steps
         try:
             execution_context = {
@@ -147,9 +170,43 @@ class WorkflowOrchestrator:
                     step_results.append(step_result)
                     continue
 
+                # Emit step started event
+                if STREAMING_AVAILABLE:
+                    try:
+                        streaming_manager.emit(str(execution_id), StreamEvent(
+                            type="step_started",
+                            execution_id=str(execution_id),
+                            data={
+                                "step_number": step.step_number,
+                                "step_name": step.step_name,
+                                "function": step.function_to_call
+                            }
+                        ))
+                    except Exception as e:
+                        print(f"Warning: Failed to emit step_started event: {e}")
+
                 # Execute step
                 step_result = self._execute_step(step, execution_context, schema)
                 step_results.append(step_result)
+
+                # Emit step completed/failed event
+                if STREAMING_AVAILABLE:
+                    try:
+                        event_type = "step_completed" if step_result.status == "completed" else "step_failed"
+                        streaming_manager.emit(str(execution_id), StreamEvent(
+                            type=event_type,
+                            execution_id=str(execution_id),
+                            data={
+                                "step_number": step.step_number,
+                                "step_name": step.step_name,
+                                "status": step_result.status,
+                                "execution_time_ms": step_result.execution_time_ms,
+                                "error_message": step_result.error_message if step_result.status == "failed" else None,
+                                "progress": int((len(step_results) / len(schema.workflow_steps)) * 100)
+                            }
+                        ))
+                    except Exception as e:
+                        print(f"Warning: Failed to emit step completion event: {e}")
 
                 # Store step output in context
                 if step_result.status == "completed" and step_result.output_data:
@@ -163,6 +220,7 @@ class WorkflowOrchestrator:
                             execution_id=execution_id,
                             status="failed",
                             step_results=step_results,
+                            user_id=user_id,
                             error_message=step_result.error_message,
                             error_step=step.step_number,
                             started_at=started_at
@@ -193,11 +251,30 @@ class WorkflowOrchestrator:
                 execution_id=execution_id,
                 status=execution_status,
                 step_results=step_results,
+                user_id=user_id,
                 output_data=final_output,
                 risk_score=risk_score,
                 requires_approval=requires_approval,
                 started_at=started_at
             )
+
+            # Emit execution completed event
+            if STREAMING_AVAILABLE:
+                try:
+                    streaming_manager.emit(str(execution_id), StreamEvent(
+                        type="execution_completed",
+                        execution_id=str(execution_id),
+                        data={
+                            "status": execution_status,
+                            "risk_score": risk_score,
+                            "requires_approval": requires_approval,
+                            "total_steps": len(step_results),
+                            "successful_steps": len([s for s in step_results if s.status == "completed"]),
+                            "progress": 100
+                        }
+                    ))
+                except Exception as e:
+                    print(f"Warning: Failed to emit execution_completed event: {e}")
 
             return execution
 
@@ -207,9 +284,25 @@ class WorkflowOrchestrator:
                 execution_id=execution_id,
                 status="failed",
                 step_results=step_results if 'step_results' in locals() else [],
+                user_id=user_id,
                 error_message=f"Workflow execution failed: {str(e)}",
                 started_at=started_at
             )
+
+            # Emit execution failed event
+            if STREAMING_AVAILABLE:
+                try:
+                    streaming_manager.emit(str(execution_id), StreamEvent(
+                        type="execution_failed",
+                        execution_id=str(execution_id),
+                        data={
+                            "error_message": str(e),
+                            "progress": 0
+                        }
+                    ))
+                except Exception as emit_error:
+                    print(f"Warning: Failed to emit execution_failed event: {emit_error}")
+
             return execution
 
     # ========================================================================
@@ -637,6 +730,7 @@ class WorkflowOrchestrator:
         execution_id: UUID,
         status: str,
         step_results: List[StepResult],
+        user_id: str,
         output_data: Optional[Dict[str, Any]] = None,
         risk_score: Optional[float] = None,
         requires_approval: bool = False,
@@ -676,7 +770,7 @@ class WorkflowOrchestrator:
             for sr in step_results
         ]
 
-        result = self.db.execute_query(
+        result = self.db.execute_query_dict(
             query,
             (
                 status,
@@ -694,7 +788,7 @@ class WorkflowOrchestrator:
 
         # Log audit
         self.db.log_audit(
-            user_id=result[0][9],  # user_id from result
+            user_id=user_id,  # Use passed user_id parameter
             action="workflow_executed",
             entity_type="workflow_execution",
             entity_id=str(execution_id),
@@ -705,29 +799,29 @@ class WorkflowOrchestrator:
             }
         )
 
-        # Build WorkflowExecution object from result
+        # Build WorkflowExecution object from result row (dictionary)
         row = result[0]
         return WorkflowExecution(
-            id=row[0],
-            schema_id=row[1],
-            deliverable_type=row[2],
-            execution_status=row[3],
-            input_data=row[4],
-            output_data=row[5],
-            intermediate_results=[StepResult(**sr) for sr in row[6]],
-            risk_score=row[7],
-            requires_approval=row[8],
-            approved_by=row[9] if len(row) > 9 else None,
-            approved_at=row[10] if len(row) > 10 else None,
-            approval_notes=row[11] if len(row) > 11 else None,
-            execution_time_ms=row[12] if len(row) > 12 else None,
-            started_at=row[13] if len(row) > 13 else started_at,
-            completed_at=row[14] if len(row) > 14 else completed_at,
-            error_message=row[15] if len(row) > 15 else error_message,
-            error_step=row[16] if len(row) > 16 else error_step,
-            user_id=row[17] if len(row) > 17 else "unknown",
-            project_id=row[18] if len(row) > 18 else None,
-            created_at=row[19] if len(row) > 19 else started_at
+            id=row['id'],
+            schema_id=row['schema_id'],
+            deliverable_type=row['deliverable_type'],
+            execution_status=row['execution_status'],
+            input_data=row['input_data'],
+            output_data=row['output_data'],
+            intermediate_results=[StepResult(**sr) for sr in row['intermediate_results']],
+            risk_score=row['risk_score'],
+            requires_approval=row['requires_approval'],
+            approved_by=row.get('approved_by'),
+            approved_at=row.get('approved_at'),
+            approval_notes=row.get('approval_notes'),
+            execution_time_ms=row.get('execution_time_ms'),
+            started_at=row.get('started_at', started_at),
+            completed_at=row.get('completed_at', completed_at),
+            error_message=row.get('error_message', error_message),
+            error_step=row.get('error_step', error_step),
+            user_id=row.get('user_id', user_id),
+            project_id=row.get('project_id'),
+            created_at=row.get('created_at', started_at)
         )
 
 

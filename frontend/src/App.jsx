@@ -7,6 +7,7 @@ import FoundationDesignPage from './pages/FoundationDesignPage'
 import WorkflowsPage from './pages/WorkflowsPage'
 import WorkflowExecutionPage from './pages/WorkflowExecutionPage'
 import ExecutionsPage from './pages/ExecutionsPage'
+import ApprovalsPage from './pages/ApprovalsPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
           <Route path="workflows/:deliverableType/execute" element={<WorkflowExecutionPage />} />
           <Route path="executions" element={<ExecutionsPage />} />
           <Route path="executions/:executionId" element={<ExecutionsPage />} />
+          <Route path="approvals" element={<ApprovalsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

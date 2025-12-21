@@ -6,6 +6,7 @@ import {
   FiTool,
   FiLayers,
   FiActivity,
+  FiCheckSquare,
   FiSettings,
   FiMenu,
   FiX,
@@ -17,6 +18,7 @@ const navigation = [
   { name: 'Foundation Design', href: '/foundation-design', icon: FiTool },
   { name: 'Workflows', href: '/workflows', icon: FiLayers },
   { name: 'Executions', href: '/executions', icon: FiActivity },
+  { name: 'Approvals', href: '/approvals', icon: FiCheckSquare },
   { name: 'Settings', href: '/settings', icon: FiSettings },
 ];
 

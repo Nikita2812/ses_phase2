@@ -82,7 +82,7 @@ class WorkflowExecuteResponse(BaseModel):
     execution_id: str
     deliverable_type: str
     execution_status: str
-    risk_score: float
+    risk_score: Optional[float] = None  # Can be None if not calculated
     requires_approval: bool
     output_data: Optional[dict] = None
     error_message: Optional[str] = None
@@ -280,7 +280,7 @@ async def execute_workflow_endpoint(deliverable_type: str, request: WorkflowExec
         )
 
         return WorkflowExecuteResponse(
-            execution_id=result.execution_id,
+            execution_id=str(result.id),  # Convert UUID to string
             deliverable_type=result.deliverable_type,
             execution_status=result.execution_status,
             risk_score=result.risk_score,

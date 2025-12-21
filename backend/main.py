@@ -20,6 +20,7 @@ from app.graph.main_graph import run_workflow
 from app.core.database import log_audit_entry
 from app.api.chat_routes import router as chat_router
 from app.api.workflow_routes import router as workflow_router
+from app.api.approval_routes import approval_router
 
 
 # =============================================================================
@@ -76,6 +77,7 @@ app.add_middleware(
 # Include API routers - MUST be before static files
 app.include_router(chat_router)  # Sprint 3: Chat API
 app.include_router(workflow_router)  # Phase 2 Sprint 2: Workflow Management
+app.include_router(approval_router)  # Phase 2 Sprint 4: HITL Approval Workflow
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")

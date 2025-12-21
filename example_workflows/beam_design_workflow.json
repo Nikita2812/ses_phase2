@@ -1,0 +1,148 @@
+{
+  "deliverable_type": "beam_design_example",
+  "display_name": "Steel Beam Design Workflow (Example)",
+  "description": "Example multi-step workflow for designing steel beams with validation and optimization",
+  "discipline": "structural",
+  "workflow_steps": [
+    {
+      "step_number": 1,
+      "step_name": "validate_input",
+      "description": "Validate input parameters and check feasibility",
+      "persona": "Checker",
+      "function_to_call": "civil_foundation_designer_v1.design_isolated_footing",
+      "input_mapping": {
+        "axial_load_dead": "$input.axial_load_dead",
+        "axial_load_live": "$input.axial_load_live",
+        "column_width": "$input.column_width",
+        "column_depth": "$input.column_depth",
+        "safe_bearing_capacity": "$input.safe_bearing_capacity",
+        "concrete_grade": "$input.concrete_grade",
+        "steel_grade": "$input.steel_grade"
+      },
+      "output_variable": "validation_result",
+      "condition": null,
+      "error_handling": {
+        "retry_count": 0,
+        "on_error": "fail",
+        "fallback_value": null
+      },
+      "timeout_seconds": 120
+    },
+    {
+      "step_number": 2,
+      "step_name": "preliminary_design",
+      "description": "Create preliminary design based on validated inputs",
+      "persona": "Designer",
+      "function_to_call": "civil_foundation_designer_v1.optimize_schedule",
+      "input_mapping": {
+        "footing_length_initial": "$step1.footing_length_initial",
+        "footing_width_initial": "$step1.footing_width_initial",
+        "footing_depth": "$step1.footing_depth",
+        "steel_bars_long": "$step1.steel_bars_long",
+        "steel_bars_trans": "$step1.steel_bars_trans",
+        "bar_diameter": "$step1.bar_diameter",
+        "concrete_volume": "$step1.concrete_volume"
+      },
+      "output_variable": "preliminary_design",
+      "error_handling": {
+        "retry_count": 2,
+        "on_error": "fail",
+        "fallback_value": null
+      },
+      "timeout_seconds": 300
+    }
+  ],
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "axial_load_dead",
+      "axial_load_live",
+      "column_width",
+      "column_depth",
+      "safe_bearing_capacity"
+    ],
+    "properties": {
+      "axial_load_dead": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10000,
+        "description": "Dead load in kN"
+      },
+      "axial_load_live": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 10000,
+        "description": "Live load in kN"
+      },
+      "column_width": {
+        "type": "number",
+        "minimum": 0.1,
+        "maximum": 5.0,
+        "description": "Column width in meters"
+      },
+      "column_depth": {
+        "type": "number",
+        "minimum": 0.1,
+        "maximum": 5.0,
+        "description": "Column depth in meters"
+      },
+      "safe_bearing_capacity": {
+        "type": "number",
+        "minimum": 50,
+        "maximum": 2000,
+        "description": "Safe bearing capacity in kPa"
+      },
+      "concrete_grade": {
+        "type": "string",
+        "enum": ["M20", "M25", "M30", "M35", "M40"],
+        "default": "M25",
+        "description": "Concrete grade as per IS 456"
+      },
+      "steel_grade": {
+        "type": "string",
+        "enum": ["Fe415", "Fe500", "Fe550"],
+        "default": "Fe415",
+        "description": "Reinforcement steel grade"
+      }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "design_summary": {
+        "type": "object",
+        "description": "Summary of the final design"
+      },
+      "material_quantities": {
+        "type": "object",
+        "description": "Bill of materials"
+      },
+      "drawings": {
+        "type": "array",
+        "description": "List of drawing references"
+      }
+    }
+  },
+  "validation_rules": [
+    {
+      "rule_type": "range_check",
+      "field": "axial_load_dead",
+      "min": 0,
+      "max": 10000,
+      "message": "Dead load must be between 0 and 10000 kN"
+    },
+    {
+      "rule_type": "conditional",
+      "condition": "column_width > 1.0",
+      "required_fields": ["concrete_grade"],
+      "message": "Concrete grade must be specified for large columns"
+    }
+  ],
+  "risk_config": {
+    "auto_approve_threshold": 0.25,
+    "require_review_threshold": 0.65,
+    "require_hitl_threshold": 0.85
+  },
+  "status": "draft",
+  "tags": ["example", "beam", "structural", "steel", "is800"]
+}

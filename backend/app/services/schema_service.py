@@ -107,7 +107,7 @@ class SchemaService:
             RETURNING *;
         """
 
-        result = self.db.execute_query(
+        result = self.db.execute_query_dict(
             query,
             (
                 schema_id,
@@ -121,7 +121,7 @@ class SchemaService:
                 json.dumps(validation_rules_json),
                 json.dumps(risk_config_json),
                 schema_data.status,
-                json.dumps(schema_data.tags),
+                schema_data.tags,  # Pass list directly - psycopg2 handles array conversion
                 1,  # Initial version
                 now,
                 now,
@@ -155,7 +155,7 @@ class SchemaService:
             }
         )
 
-        return self._row_to_schema(result[0])
+        return self._dict_to_schema(result[0])
 
     # ========================================================================
     # READ
@@ -245,9 +245,9 @@ class SchemaService:
             params.append(status)
 
         if tags:
-            # Check if schema contains all specified tags
-            conditions.append("tags @> %s::jsonb")
-            params.append(json.dumps(tags))
+            # Check if schema contains all specified tags (array operation)
+            conditions.append("tags @> %s")
+            params.append(tags)
 
         where_clause = " AND ".join(conditions) if conditions else "TRUE"
 
@@ -342,8 +342,8 @@ class SchemaService:
             params.append(updates.status)
 
         if updates.tags is not None:
-            update_fields.append("tags = %s::jsonb")
-            params.append(json.dumps(updates.tags))
+            update_fields.append("tags = %s")
+            params.append(updates.tags)
 
         if not update_fields:
             # No updates provided
@@ -660,7 +660,8 @@ class SchemaService:
                 change_description,
                 datetime.utcnow(),
                 created_by
-            )
+            ),
+            fetch=False  # No RETURNING clause, don't fetch results
         )
 
 
