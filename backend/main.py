@@ -13,17 +13,55 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional
 import uvicorn
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.graph.main_graph import run_workflow
 from app.core.database import log_audit_entry
 from app.api.chat_routes import router as chat_router
+from app.api.workflow_routes import router as workflow_router
+
+
+# =============================================================================
+# LIFESPAN CONTEXT MANAGER
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown events.
+    Replaces deprecated @app.on_event decorators.
+    """
+    # Startup
+    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print("Sprint 1, 2 & 3: Phase 1 Complete")
+    print("")
+    print("Available Features:")
+    print("  - Sprint 1: Ambiguity Detection & LangGraph Workflow")
+    print("  - Sprint 2: Knowledge Base with Vector Search (RAG)")
+    print("  - Sprint 3: Conversational Chat Interface")
+    print("")
+
+    # Validate configuration
+    try:
+        settings.validate()
+        print("✓ Configuration validated successfully")
+    except ValueError as e:
+        print(f"✗ Configuration validation failed: {e}")
+        print("  Please check your .env file")
+
+    yield
+
+    # Shutdown
+    print(f"Shutting down {settings.APP_NAME}")
+
 
 # Initialize FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="AI-powered automation platform for Civil & Structural Architecture Engineering"
+    description="AI-powered automation platform for Civil & Structural Architecture Engineering",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -35,8 +73,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include chat router FIRST (Sprint 3) - MUST be before static files
-app.include_router(chat_router)
+# Include API routers - MUST be before static files
+app.include_router(chat_router)  # Sprint 3: Chat API
+app.include_router(workflow_router)  # Phase 2 Sprint 2: Workflow Management
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")
@@ -53,17 +92,19 @@ class TaskRequest(BaseModel):
     input_data: Dict[str, Any] = Field(
         ...,
         description="Input data for the task",
-        example={
-            "task_type": "foundation_design",
-            "soil_type": "clayey",
-            "load": 1000,
-            "column_dimensions": "400x400"
+        json_schema_extra={
+            "example": {
+                "task_type": "foundation_design",
+                "soil_type": "clayey",
+                "load": 1000,
+                "column_dimensions": "400x400"
+            }
         }
     )
     user_id: str = Field(
         ...,
         description="ID of the user submitting the task",
-        example="user_123"
+        json_schema_extra={"example": "user_123"}
     )
 
 
@@ -115,6 +156,13 @@ async def root():
             "docs": "/docs"
         }
     }
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """Return 204 No Content for favicon requests to prevent 404 errors."""
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
 
 @app.get("/health")
@@ -229,37 +277,6 @@ async def get_task_status(task_id: str):
         "status": "not_implemented",
         "message": "Task status tracking will be implemented in future sprints"
     }
-
-
-# =============================================================================
-# STARTUP/SHUTDOWN EVENTS
-# =============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    """Execute tasks on application startup."""
-    print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    print("Sprint 1, 2 & 3: Phase 1 Complete")
-    print("")
-    print("Available Features:")
-    print("  - Sprint 1: Ambiguity Detection & LangGraph Workflow")
-    print("  - Sprint 2: Knowledge Base with Vector Search (RAG)")
-    print("  - Sprint 3: Conversational Chat Interface")
-    print("")
-
-    # Validate configuration
-    try:
-        settings.validate()
-        print("✓ Configuration validated successfully")
-    except ValueError as e:
-        print(f"✗ Configuration validation failed: {e}")
-        print("  Please check your .env file")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Execute tasks on application shutdown."""
-    print(f"Shutting down {settings.APP_NAME}")
 
 
 # =============================================================================

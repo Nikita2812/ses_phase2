@@ -116,9 +116,13 @@ python ingest_all_documents_auto.py
 python ingest_example.py
 ```
 
-### Phase 2: Calculation Engine (NEW)
+### Phase 2: Calculation Engine & Configuration Layer
 
 ```bash
+# ============================================================================
+# SPRINT 1: Math Engine
+# ============================================================================
+
 # Run Phase 2 Sprint 1 demonstration
 python demo_phase2_sprint1.py
 
@@ -132,6 +136,37 @@ python -m app.engines.registry
 python
 >>> from app.engines.registry import invoke_engine
 >>> result = invoke_engine("civil_foundation_designer_v1", "design_isolated_footing", {...})
+
+# ============================================================================
+# SPRINT 2: Configuration Layer
+# ============================================================================
+
+# Initialize Sprint 2 database schema
+psql -U postgres -d csa_db < backend/init_phase2_sprint2.sql
+
+# Run Phase 2 Sprint 2 demonstration
+python demo_phase2_sprint2.py
+
+# Run schema service tests
+pytest tests/unit/services/test_schema_service.py -v
+
+# Run workflow orchestrator tests
+pytest tests/unit/services/test_workflow_orchestrator.py -v
+
+# Run all Sprint 2 tests
+pytest tests/unit/services/ -v
+
+# Interactive schema management
+python
+>>> from app.services.schema_service import SchemaService
+>>> service = SchemaService()
+>>> schemas = service.list_schemas(discipline="civil", status="active")
+
+# Execute workflow dynamically
+python
+>>> from app.services.workflow_orchestrator import execute_workflow
+>>> result = execute_workflow("foundation_design", {...}, "user123")
+>>> print(result.execution_status)
 ```
 
 ## Core Architecture
@@ -197,17 +232,25 @@ class AgentState(TypedDict):
 - LangGraph integration (`calculation_execution_node`)
 - 19 comprehensive unit tests (100% passing)
 
-**Phase 2 Sprint 2 ("The Configuration Layer")**: Pending
-- Database schema for workflow definitions
-- JSONB workflow configuration storage
+**Phase 2 Sprint 2 ("The Configuration Layer")**: ✅ Complete
+- Database schema for workflow definitions (JSONB)
+- Pydantic models for schema validation
+- Schema service with CRUD + versioning
+- Workflow orchestrator with dynamic execution
+- Variable substitution engine (`$input`, `$step`, `$context`)
+- Risk-based HITL decision making
+- 46 comprehensive unit tests (100% passing)
 
-**Phase 2 Sprint 3 ("The Orchestrator")**: Pending
-- Dynamic workflow interpreter
-- Database-driven task execution
+**Phase 2 Sprint 3 ("The Dynamic Executor")**: Pending
+- Parallel step execution
+- Advanced retry logic
+- Streaming outputs
+- Complex conditional expressions
 
 **Phase 2 Sprint 4 ("The Safety Valve")**: Pending
-- Risk assessment integration
-- Human-in-the-Loop (HITL) workflow
+- Enhanced risk assessment
+- HITL approval interface
+- Cross-discipline validation
 
 ## Key Patterns and Conventions
 
@@ -370,6 +413,120 @@ engine_registry.register_tool(
 4. Add task type mapping in `backend/app/nodes/calculation.py`
 5. Write unit tests in `tests/unit/engines/`
 
+### Using the Configuration Layer (Phase 2 Sprint 2)
+
+The Configuration Layer enables "Configuration over Code" - workflows are stored as data in the database, not hardcoded in Python.
+
+**Creating a Workflow Schema:**
+
+```python
+from app.services.schema_service import SchemaService
+from app.schemas.workflow.schema_models import (
+    DeliverableSchemaCreate,
+    WorkflowStep,
+    RiskConfig
+)
+
+service = SchemaService()
+
+# Define workflow steps
+steps = [
+    WorkflowStep(
+        step_number=1,
+        step_name="initial_design",
+        description="Design isolated footing per IS 456",
+        function_to_call="civil_foundation_designer_v1.design_isolated_footing",
+        input_mapping={
+            "axial_load_dead": "$input.axial_load_dead",
+            "column_width": "$input.column_width",
+            # Use $input.field for user input
+            # Use $step1.output_var for previous step output
+        },
+        output_variable="initial_design_data"
+    ),
+    # Add more steps...
+]
+
+# Create schema
+schema = service.create_schema(
+    DeliverableSchemaCreate(
+        deliverable_type="foundation_design",
+        display_name="Foundation Design (IS 456)",
+        discipline="civil",
+        workflow_steps=steps,
+        input_schema={"type": "object", "required": ["axial_load_dead"]},
+        risk_config=RiskConfig(
+            auto_approve_threshold=0.3,
+            require_hitl_threshold=0.9
+        )
+    ),
+    created_by="admin"
+)
+```
+
+**Executing a Workflow Dynamically:**
+
+```python
+from app.services.workflow_orchestrator import execute_workflow
+
+result = execute_workflow(
+    deliverable_type="foundation_design",
+    input_data={
+        "axial_load_dead": 600.0,
+        "axial_load_live": 400.0,
+        "column_width": 0.4,
+        # ... other inputs
+    },
+    user_id="engineer123"
+)
+
+print(f"Status: {result.execution_status}")
+print(f"Risk Score: {result.risk_score}")
+print(f"HITL Required: {result.requires_approval}")
+print(f"Output: {result.output_data}")
+```
+
+**Variable Substitution Syntax:**
+- `$input.field_name` → User input field
+- `$step1.output_variable` → Output from step 1
+- `$stepN.output_variable` → Output from step N
+- `$context.key` → Execution context (user_id, execution_id, etc.)
+
+**Updating a Workflow (No Code Deployment!):**
+
+```python
+from app.schemas.workflow.schema_models import DeliverableSchemaUpdate
+
+# Change risk thresholds without code deployment
+service.update_schema(
+    "foundation_design",
+    DeliverableSchemaUpdate(
+        risk_config=RiskConfig(auto_approve_threshold=0.2)
+    ),
+    updated_by="admin",
+    change_description="Lowered threshold for testing"
+)
+```
+
+**Rollback a Workflow:**
+
+```python
+# View version history
+versions = service.get_schema_versions("foundation_design")
+for v in versions:
+    print(f"v{v.version}: {v.change_description}")
+
+# Rollback to previous version
+service.rollback_to_version("foundation_design", target_version=3, rolled_back_by="admin")
+```
+
+**Benefits:**
+- ✅ Update workflows without deployment
+- ✅ Complete version history with rollback
+- ✅ Dynamic execution based on database schemas
+- ✅ Risk-based HITL approval
+- ✅ Full audit trail
+
 ## Important Notes
 
 ### Configuration Management
@@ -430,7 +587,13 @@ The ambiguity node handles markdown-wrapped JSON automatically. If it persists:
 ## Reference Documentation
 
 - **Implementation Guide**: [documents/CSA_AIaaS_Platform_Implementation_Guide.md](documents/CSA_AIaaS_Platform_Implementation_Guide.md)
-- **Sprint Summaries**: `SPRINT1_IMPLEMENTATION_SUMMARY.md`, `SPRINT2_IMPLEMENTATION_SUMMARY.md`, `SPRINT3_IMPLEMENTATION_SUMMARY.md`
+- **Phase 1 Sprint Summaries**:
+  - [SPRINT1_IMPLEMENTATION_SUMMARY.md](SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Neuro-Skeleton
+  - [SPRINT2_IMPLEMENTATION_SUMMARY.md](SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Memory Implantation
+  - [SPRINT3_IMPLEMENTATION_SUMMARY.md](SPRINT3_IMPLEMENTATION_SUMMARY.md) - The Voice
+- **Phase 2 Sprint Summaries**:
+  - [PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Math Engine
+  - [PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Configuration Layer
 - **Architecture**: [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md)
 - **Testing Guide**: [backend/TESTING_GUIDE.md](backend/TESTING_GUIDE.md)
 - **Quick Reference**: [backend/QUICK_REFERENCE.md](backend/QUICK_REFERENCE.md)

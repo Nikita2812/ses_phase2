@@ -23,6 +23,7 @@ class Settings:
     # Database Configuration
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+    DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL")  # PostgreSQL connection string for raw SQL
 
     # LLM Configuration (OpenRouter)
     OPENROUTER_API_KEY: Optional[str] = os.getenv("OPENROUTER_API_KEY")

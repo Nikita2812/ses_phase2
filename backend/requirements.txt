@@ -17,10 +17,9 @@ langchain-openai>=0.0.5  # Used for OpenRouter API compatibility
 # LLM Providers (OpenRouter via OpenAI-compatible API)
 # Note: We use langchain-openai with OpenRouter's base_url
 
-# Database (Supabase uses REST API, no psycopg2 needed)
-supabase>=2.3.0
-# Note: psycopg2-binary removed - not needed for Supabase REST API
-# If you need direct PostgreSQL access later, use: psycopg2-binary>=2.9.9 with Python 3.11
+# Database
+supabase>=2.3.0  # Supabase REST API client
+psycopg2-binary>=2.9.9  # PostgreSQL adapter for raw SQL queries (Phase 2 Sprint 2)
 
 # HTTP & Networking
 httpx>=0.25.0
