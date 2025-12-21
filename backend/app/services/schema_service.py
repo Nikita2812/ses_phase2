@@ -24,7 +24,9 @@ from app.schemas.workflow.schema_models import (
     DeliverableSchemaUpdate,
     DeliverableSchema,
     SchemaVersion,
-    WorkflowStatistics
+    WorkflowStatistics,
+    WorkflowStep,
+    RiskConfig
 )
 from app.core.database import DatabaseConfig
 from pydantic import ValidationError
@@ -595,17 +597,21 @@ class SchemaService:
 
     def _dict_to_schema(self, row: dict) -> DeliverableSchema:
         """Convert database row dict to DeliverableSchema object."""
+        # Parse JSONB fields into Pydantic models
+        workflow_steps = [WorkflowStep(**step) for step in row['workflow_steps']]
+        risk_config = RiskConfig(**row['risk_config'])
+
         return DeliverableSchema(
             id=row['id'],
             deliverable_type=row['deliverable_type'],
             display_name=row['display_name'],
             description=row['description'],
             discipline=row['discipline'],
-            workflow_steps=row['workflow_steps'],  # Already parsed as list by psycopg2
+            workflow_steps=workflow_steps,
             input_schema=row['input_schema'],
             output_schema=row['output_schema'],
             validation_rules=row['validation_rules'],
-            risk_config=row['risk_config'],
+            risk_config=risk_config,
             status=row['status'],
             tags=row['tags'],
             version=row['version'],

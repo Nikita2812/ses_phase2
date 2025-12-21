@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiLayers, FiPlus, FiEdit, FiPlay, FiTrash2, FiAlertCircle } from 'react-icons/fi';
 
 const API_BASE_URL = 'http://localhost:8000';
 
 export default function WorkflowsPage() {
+  const navigate = useNavigate();
   const [workflows, setWorkflows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -205,6 +207,7 @@ export default function WorkflowsPage() {
                         <FiEdit className="inline" />
                       </button>
                       <button
+                        onClick={() => navigate(`/workflows/${workflow.deliverable_type}/execute`)}
                         className="text-green-600 hover:text-green-900 mr-3"
                         title="Execute workflow"
                       >

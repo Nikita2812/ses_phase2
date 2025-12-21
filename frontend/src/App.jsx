@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
 import FoundationDesignPage from './pages/FoundationDesignPage'
 import WorkflowsPage from './pages/WorkflowsPage'
+import WorkflowExecutionPage from './pages/WorkflowExecutionPage'
 import ExecutionsPage from './pages/ExecutionsPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -22,6 +23,7 @@ function App() {
           <Route path="workflows" element={<WorkflowsPage />} />
           <Route path="workflows/create" element={<WorkflowsPage create />} />
           <Route path="workflows/:schemaId" element={<WorkflowsPage />} />
+          <Route path="workflows/:deliverableType/execute" element={<WorkflowExecutionPage />} />
           <Route path="executions" element={<ExecutionsPage />} />
           <Route path="executions/:executionId" element={<ExecutionsPage />} />
           <Route path="settings" element={<SettingsPage />} />

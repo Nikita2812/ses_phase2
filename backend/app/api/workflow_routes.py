@@ -1,8 +1,8 @@
 """
 CSA AIaaS Platform - Workflow API Routes
-Phase 2 Sprint 2: The Configuration Layer
+Phase 2 Sprint 2 & 3: The Configuration Layer + Dynamic Executor
 
-This module defines the FastAPI routes for workflow schema management.
+This module defines the FastAPI routes for workflow schema management and execution.
 
 Endpoints:
 - GET /api/v1/workflows - List all workflow schemas
@@ -12,11 +12,16 @@ Endpoints:
 - DELETE /api/v1/workflows/{deliverable_type} - Delete a workflow schema
 - POST /api/v1/workflows/{deliverable_type}/execute - Execute a workflow
 - GET /api/v1/workflows/{deliverable_type}/versions - Get version history
+- GET /api/v1/workflows/{deliverable_type}/graph - Get dependency graph (Sprint 3)
+- WS /api/v1/workflows/stream/{execution_id} - Stream execution updates (Sprint 3)
 """
 
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
+import json
+import uuid
+import logging
 
 from app.services.schema_service import SchemaService
 from app.services.workflow_orchestrator import execute_workflow
@@ -26,6 +31,14 @@ from app.schemas.workflow.schema_models import (
     WorkflowStep,
     RiskConfig
 )
+from app.execution import (
+    DependencyGraph,
+    DependencyAnalyzer,
+    get_streaming_manager,
+    StreamEvent,
+)
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -163,13 +176,14 @@ async def get_workflow(deliverable_type: str, version: Optional[int] = None):
 
     Args:
         deliverable_type: The workflow type
-        version: Optional specific version (defaults to latest)
+        version: Optional specific version (defaults to latest) - TODO: Implement version support
 
     Returns:
         Workflow schema
     """
     try:
-        schema = schema_service.get_schema(deliverable_type, version=version)
+        # TODO: Add version support - for now, always get latest
+        schema = schema_service.get_schema(deliverable_type)
         if not schema:
             raise HTTPException(status_code=404, detail=f"Workflow '{deliverable_type}' not found")
 
@@ -342,6 +356,155 @@ async def rollback_workflow(
 
 
 # =============================================================================
+# SPRINT 3: DEPENDENCY GRAPH & STREAMING
+# =============================================================================
+
+@router.get("/{deliverable_type}/graph")
+async def get_dependency_graph(deliverable_type: str):
+    """
+    Get dependency graph analysis for a workflow (Sprint 3).
+
+    Returns statistics about parallelization opportunities,
+    critical path, and estimated speedup.
+
+    Args:
+        deliverable_type: The workflow type
+
+    Returns:
+        Dependency graph statistics
+    """
+    try:
+        # Get workflow schema
+        schema = schema_service.get_schema(deliverable_type)
+        if not schema:
+            raise HTTPException(status_code=404, detail=f"Workflow '{deliverable_type}' not found")
+
+        # Analyze dependencies
+        graph, stats = DependencyAnalyzer.analyze(schema.workflow_steps)
+
+        # Get execution order and critical path
+        execution_order = graph.get_execution_order()
+        critical_path = graph.calculate_critical_path() if not stats.has_cycles else []
+
+        # Estimate speedup
+        estimated_speedup = DependencyAnalyzer.estimate_speedup(stats)
+
+        return {
+            "deliverable_type": deliverable_type,
+            "total_steps": stats.total_steps,
+            "max_depth": stats.max_depth,
+            "max_width": stats.max_width,
+            "critical_path_length": stats.critical_path_length,
+            "parallelization_factor": stats.parallelization_factor,
+            "has_cycles": stats.has_cycles,
+            "estimated_speedup": estimated_speedup,
+            "execution_order": execution_order,
+            "critical_path": critical_path,
+            "cycles": stats.cycles if stats.has_cycles else []
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to analyze workflow graph: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.websocket("/stream/{execution_id}")
+async def stream_workflow_execution(websocket: WebSocket, execution_id: str):
+    """
+    WebSocket endpoint for real-time workflow execution updates (Sprint 3).
+
+    Events streamed:
+    - execution_started
+    - step_started
+    - step_completed
+    - step_failed
+    - progress_update
+    - execution_completed
+    - execution_failed
+
+    Args:
+        websocket: WebSocket connection
+        execution_id: Execution ID to stream
+    """
+    await websocket.accept()
+    logger.info(f"WebSocket connected for execution {execution_id}")
+
+    streaming_manager = get_streaming_manager()
+
+    try:
+        # Send historical events first
+        history = streaming_manager.get_event_history(execution_id)
+        for event in history:
+            await websocket.send_text(event.to_json())
+
+        # Subscribe to new events
+        async def send_to_websocket(event: StreamEvent):
+            """Callback to send events to WebSocket"""
+            try:
+                await websocket.send_text(event.to_json())
+            except Exception as e:
+                logger.error(f"Failed to send event to WebSocket: {e}")
+
+        streaming_manager.subscribe(execution_id, send_to_websocket)
+
+        # Keep connection alive
+        while True:
+            try:
+                # Receive ping messages from client
+                data = await websocket.receive_text()
+
+                # Echo back as pong
+                if data == "ping":
+                    await websocket.send_text(json.dumps({"type": "pong"}))
+
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket disconnected for execution {execution_id}")
+                break
+
+    except Exception as e:
+        logger.error(f"WebSocket error for execution {execution_id}: {e}")
+
+    finally:
+        # Unsubscribe on disconnect
+        streaming_manager.unsubscribe(execution_id, send_to_websocket)
+        logger.info(f"WebSocket closed for execution {execution_id}")
+
+
+@router.get("/{deliverable_type}/stats")
+async def get_workflow_stats(deliverable_type: str):
+    """
+    Get execution statistics for a workflow type (Sprint 3).
+
+    Returns aggregated statistics from all executions of this workflow.
+
+    Args:
+        deliverable_type: The workflow type
+
+    Returns:
+        Workflow execution statistics
+    """
+    try:
+        # TODO: Implement proper statistics from database in Sprint 4
+        # For now, return basic stats
+
+        return {
+            "deliverable_type": deliverable_type,
+            "total_executions": 0,
+            "successful_executions": 0,
+            "failed_executions": 0,
+            "average_execution_time_ms": 0,
+            "average_parallel_speedup": 0,
+            "message": "Statistics tracking will be implemented in Sprint 4"
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get workflow stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # HEALTH CHECK
 # =============================================================================
 
@@ -360,7 +523,14 @@ async def workflow_health():
         return {
             "status": "healthy",
             "total_workflows": len(all_schemas),
-            "sprint": "Phase 2 Sprint 2: The Configuration Layer"
+            "sprint": "Phase 2 Sprint 2 & 3: Configuration Layer + Dynamic Executor",
+            "features": [
+                "workflow_schema_management",
+                "workflow_execution",
+                "dependency_graph_analysis",
+                "real_time_streaming",
+                "parallel_execution_support"
+            ]
         }
     except Exception as e:
         return {
