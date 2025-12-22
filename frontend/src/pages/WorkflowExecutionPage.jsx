@@ -43,6 +43,8 @@ export default function WorkflowExecutionPage() {
   const [error, setError] = useState(null);
   const [inputData, setInputData] = useState({});
   const [showInputForm, setShowInputForm] = useState(true);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(null);
+  const [collapsedSections, setCollapsedSections] = useState({});
 
   // WebSocket ref
   const wsRef = useRef(null);
@@ -59,9 +61,19 @@ export default function WorkflowExecutionPage() {
 
       // Fetch workflow schema
       const workflowRes = await fetch(`${API_BASE_URL}/api/v1/workflows/${deliverableType}`);
-      if (!workflowRes.ok) throw new Error('Failed to fetch workflow');
+      if (!workflowRes.ok) {
+        if (workflowRes.status === 404) {
+          throw new Error(`Workflow "${deliverableType}" not found. Please create it first or select a valid workflow.`);
+        }
+        throw new Error('Failed to fetch workflow');
+      }
       const workflowData = await workflowRes.json();
       setWorkflow(workflowData);
+      
+      // Check if workflow has input schema
+      if (!workflowData.input_schema || !workflowData.input_schema.properties) {
+        setError('This workflow does not have an input schema defined. Please configure the workflow first.');
+      }
 
       // Initialize steps
       const initialSteps = workflowData.workflow_steps.map(step => ({
@@ -83,6 +95,10 @@ export default function WorkflowExecutionPage() {
         });
       }
       setInputData(defaults);
+      
+      console.log('Workflow loaded:', workflowData.deliverable_type);
+      console.log('Input schema:', workflowData.input_schema);
+      console.log('Default values:', defaults);
 
       // Fetch dependency graph
       const graphRes = await fetch(`${API_BASE_URL}/api/v1/workflows/${deliverableType}/graph`);
@@ -103,13 +119,22 @@ export default function WorkflowExecutionPage() {
     try {
       setError(null);
 
+      console.log('Executing workflow with input data:', inputData);
+
       // Validate required fields
       if (workflow?.input_schema?.required) {
         const missing = workflow.input_schema.required.filter(field => !inputData[field]);
         if (missing.length > 0) {
-          setError(`Missing required fields: ${missing.join(', ')}`);
+          const fieldNames = missing.map(f => f.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')).join(', ');
+          setError(`Please fill in the following required fields: ${fieldNames}`);
           return;
         }
+      }
+
+      // Additional check: ensure we have some input data
+      if (Object.keys(inputData).length === 0 && workflow?.input_schema?.properties) {
+        setError('Please fill in the workflow parameters before executing.');
+        return;
       }
 
       setExecutionStatus('starting');
@@ -127,7 +152,8 @@ export default function WorkflowExecutionPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to start execution');
+        const errorMessage = errorData.detail || `Execution failed with status ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -227,6 +253,13 @@ export default function WorkflowExecutionPage() {
               }
             : step
         ));
+        
+        // Calculate estimated time remaining
+        if (data.execution_time_ms && data.step_number < steps.length) {
+          const avgTimePerStep = data.execution_time_ms;
+          const remainingSteps = steps.length - data.step_number;
+          setEstimatedTimeRemaining(Math.round((avgTimePerStep * remainingSteps) / 1000));
+        }
         break;
 
       case 'step_failed':
@@ -248,6 +281,7 @@ export default function WorkflowExecutionPage() {
       case 'execution_completed':
         setExecutionStatus('completed');
         setProgress(100);
+        setEstimatedTimeRemaining(null);
         break;
 
       case 'execution_failed':
@@ -269,6 +303,42 @@ export default function WorkflowExecutionPage() {
     };
   }, []);
 
+  // Group input fields by category for better UX
+  const groupInputFields = () => {
+    if (!workflow?.input_schema?.properties) return {};
+    
+    const groups = {
+      loads: [],
+      dimensions: [],
+      materials: [],
+      other: []
+    };
+
+    Object.entries(workflow.input_schema.properties).forEach(([key, schema]) => {
+      const field = { key, schema };
+      
+      if (key.includes('load') || key.includes('force') || key.includes('moment')) {
+        groups.loads.push(field);
+      } else if (key.includes('width') || key.includes('depth') || key.includes('length') || key.includes('height') || key.includes('dimension')) {
+        groups.dimensions.push(field);
+      } else if (key.includes('grade') || key.includes('material') || key.includes('concrete') || key.includes('steel')) {
+        groups.materials.push(field);
+      } else {
+        groups.other.push(field);
+      }
+    });
+
+    // Remove empty groups
+    return Object.fromEntries(Object.entries(groups).filter(([_, fields]) => fields.length > 0));
+  };
+
+  const toggleSection = (sectionName) => {
+    setCollapsedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }));
+  };
+
   // Get status badge color
   const getStatusColor = (status) => {
     switch (status) {
@@ -286,7 +356,10 @@ export default function WorkflowExecutionPage() {
     const value = inputData[key] ?? schema.default ?? '';
 
     const handleChange = (e) => {
-      const newValue = schema.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+      // Don't parse enum values - they should remain as strings
+      const newValue = (schema.type === 'number' && !schema.enum)
+        ? parseFloat(e.target.value)
+        : e.target.value;
       setInputData(prev => ({ ...prev, [key]: newValue }));
     };
 
@@ -410,7 +483,7 @@ export default function WorkflowExecutionPage() {
         </div>
       )}
 
-      {/* Input Form */}
+      {/* Input Form with Grouped Fields */}
       {executionStatus === 'idle' && workflow?.input_schema && showInputForm && (
         <div className="card">
           <div className="flex items-center justify-between mb-4">
@@ -423,26 +496,57 @@ export default function WorkflowExecutionPage() {
             </button>
           </div>
 
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {workflow.input_schema.properties && Object.entries(workflow.input_schema.properties).map(([key, schema]) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                  {workflow.input_schema.required?.includes(key) && (
-                    <span className="text-red-500 ml-1">*</span>
+          <form className="space-y-6">
+            {(() => {
+              const groups = groupInputFields();
+              const groupTitles = {
+                loads: 'Loads & Forces',
+                dimensions: 'Dimensions',
+                materials: 'Materials & Grades',
+                other: 'Other Parameters'
+              };
+
+              return Object.entries(groups).map(([groupName, fields]) => (
+                <div key={groupName} className="border border-gray-200 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(groupName)}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <h3 className="font-medium text-gray-900">{groupTitles[groupName]}</h3>
+                    <span className="text-gray-500">
+                      {collapsedSections[groupName] ? '▼' : '▲'}
+                    </span>
+                  </button>
+                  
+                  {!collapsedSections[groupName] && (
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {fields.map(({ key, schema }) => (
+                        <div key={key}>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            {key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            {workflow.input_schema.required?.includes(key) && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
+                          </label>
+                          {renderField(key, schema)}
+                          {schema.description && (
+                            <p className="text-xs text-gray-500 mt-1">{schema.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </label>
-                {renderField(key, schema)}
-                {schema.description && (
-                  <p className="text-xs text-gray-500 mt-1">{schema.description}</p>
-                )}
-              </div>
-            ))}
+                </div>
+              ));
+            })()}
           </form>
 
-          <div className="mt-4 p-3 bg-blue-50 rounded-md">
+          <div className="mt-4 p-3 bg-blue-50 rounded-md flex items-start gap-2">
+            <FiAlertCircle className="text-blue-600 mt-0.5 flex-shrink-0" size={16} />
             <p className="text-sm text-blue-800">
-              <strong>Required fields:</strong> {workflow.input_schema.required?.join(', ') || 'None'}
+              <strong>Tip:</strong> All fields marked with <span className="text-red-500">*</span> are required. 
+              Fields with default values will be pre-filled automatically.
             </p>
           </div>
         </div>
@@ -493,11 +597,19 @@ export default function WorkflowExecutionPage() {
         </div>
       )}
 
-      {/* Progress Bar */}
+      {/* Progress Bar with Time Estimate */}
       {executionStatus === 'running' && (
         <div className="card">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Execution Progress</span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-700">Execution Progress</span>
+              {estimatedTimeRemaining !== null && (
+                <span className="text-xs text-gray-500 flex items-center gap-1">
+                  <FiClock size={14} />
+                  ~{estimatedTimeRemaining}s remaining
+                </span>
+              )}
+            </div>
             <span className="text-sm font-medium text-gray-900">{Math.round(progress)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -505,6 +617,13 @@ export default function WorkflowExecutionPage() {
               className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-gray-600">
+            <span>{steps.filter(s => s.status === 'completed').length} of {steps.length} steps completed</span>
+            <span className="flex items-center gap-1">
+              <FiActivity size={12} className="animate-pulse" />
+              Processing...
+            </span>
           </div>
         </div>
       )}

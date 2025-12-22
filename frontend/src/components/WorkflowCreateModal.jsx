@@ -186,8 +186,9 @@ const AVAILABLE_FUNCTIONS = [
 ];
 
 export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
-  const [step, setStep] = useState(1); // 1: Template, 2: Basic Info, 3: Steps, 4: Input Schema, 5: Review
+  const [step, setStep] = useState(1); // 1: Template + Basic Info, 2: Steps Configuration, 3: Review
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
+  const [showTemplateList, setShowTemplateList] = useState(true);
   const [workflowData, setWorkflowData] = useState({
     deliverable_type: '',
     display_name: '',
@@ -210,15 +211,17 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [showAutocomplete, setShowAutocomplete] = useState({});
+  const [autocompletePosition, setAutocompletePosition] = useState({});
 
   if (!isOpen) return null;
 
   // Load template data
   const loadTemplate = (templateKey) => {
     setSelectedTemplate(templateKey);
+    setShowTemplateList(false);
     if (templateKey !== 'blank' && TEMPLATES[templateKey].data) {
       setWorkflowData(TEMPLATES[templateKey].data);
-      setStep(5); // Jump to review for templates
     }
   };
 
@@ -304,6 +307,111 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
     }));
   };
 
+  // Get autocomplete suggestions based on context
+  const getAutocompleteSuggestions = (stepIndex, currentValue) => {
+    const suggestions = [];
+    
+    // Add $input.* suggestions
+    if (currentValue.startsWith('$input') || currentValue === '$' || currentValue === '') {
+      suggestions.push({
+        value: '$input.',
+        label: '$input.',
+        description: 'User input fields',
+        type: 'prefix'
+      });
+    }
+    
+    // Add $step{N}.* suggestions for previous steps
+    for (let i = 0; i < stepIndex; i++) {
+      const prevStep = workflowData.workflow_steps[i];
+      if (prevStep.output_variable) {
+        const stepPrefix = `$step${i + 1}`;
+        if (currentValue.startsWith(stepPrefix) || currentValue === '$' || currentValue === '') {
+          suggestions.push({
+            value: `${stepPrefix}.`,
+            label: `${stepPrefix}.${prevStep.output_variable}`,
+            description: `Output from ${prevStep.step_name}`,
+            type: 'step'
+          });
+        }
+      }
+    }
+    
+    // Add $context.* suggestions
+    if (currentValue.startsWith('$context') || currentValue === '$' || currentValue === '') {
+      suggestions.push(
+        {
+          value: '$context.user_id',
+          label: '$context.user_id',
+          description: 'Current user ID',
+          type: 'context'
+        },
+        {
+          value: '$context.execution_id',
+          label: '$context.execution_id',
+          description: 'Current execution ID',
+          type: 'context'
+        }
+      );
+    }
+    
+    return suggestions;
+  };
+
+  // Auto-generate input schema from workflow steps
+  const generateInputSchema = () => {
+    const inputParams = new Set();
+    const inputSchemaProperties = {};
+    
+    // Extract all $input.* references from all steps
+    workflowData.workflow_steps.forEach(step => {
+      if (step.input_mapping) {
+        Object.entries(step.input_mapping).forEach(([key, value]) => {
+          if (typeof value === 'string' && value.startsWith('$input.')) {
+            const paramName = value.replace('$input.', '');
+            inputParams.add(paramName);
+            
+            // Create a basic schema for this parameter
+            if (!inputSchemaProperties[paramName]) {
+              inputSchemaProperties[paramName] = {
+                type: 'number', // Default to number for engineering params
+                description: `Input parameter: ${paramName}`
+              };
+              
+              // Try to infer better type/description based on parameter name
+              const paramLower = paramName.toLowerCase();
+              if (paramLower.includes('grade') || paramLower.includes('type') || paramLower.includes('shape')) {
+                inputSchemaProperties[paramName].type = 'string';
+              }
+              if (paramLower.includes('load')) {
+                inputSchemaProperties[paramName].description = `${paramName} (in kN)`;
+                inputSchemaProperties[paramName].minimum = 0;
+              } else if (paramLower.includes('width') || paramLower.includes('depth') || paramLower.includes('length') || paramLower.includes('dimension')) {
+                inputSchemaProperties[paramName].description = `${paramName} (in meters)`;
+                inputSchemaProperties[paramName].minimum = 0;
+              } else if (paramLower.includes('capacity') || paramLower.includes('pressure')) {
+                inputSchemaProperties[paramName].description = `${paramName} (in kPa or MPa)`;
+                inputSchemaProperties[paramName].minimum = 0;
+              }
+            }
+          }
+        });
+      }
+    });
+    
+    // Return generated schema only if there are input parameters
+    if (Object.keys(inputSchemaProperties).length > 0) {
+      return {
+        type: 'object',
+        required: Array.from(inputParams), // All extracted params are required
+        properties: inputSchemaProperties
+      };
+    }
+    
+    // Return existing schema if no params found
+    return workflowData.input_schema;
+  };
+
   // Submit workflow
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -312,16 +420,35 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
     try {
       // Validate workflow data
       if (!workflowData.deliverable_type || !workflowData.display_name) {
-        throw new Error('Deliverable type and display name are required');
+        throw new Error('Please fill in both Deliverable Type and Display Name before creating the workflow.');
       }
 
       if (workflowData.workflow_steps.length === 0) {
-        throw new Error('At least one workflow step is required');
+        throw new Error('Your workflow needs at least one step. Click "Add Step" to get started.');
       }
+
+      // Validate each step
+      for (const step of workflowData.workflow_steps) {
+        if (!step.step_name) {
+          throw new Error(`Step ${step.step_number} is missing a name. Please provide a unique name for each step.`);
+        }
+        if (!step.function_to_call) {
+          throw new Error(`Step ${step.step_number} ("${step.step_name}") needs a function selected. Choose from the dropdown.`);
+        }
+        if (!step.output_variable) {
+          throw new Error(`Step ${step.step_number} ("${step.step_name}") needs an output variable to store its results.`);
+        }
+      }
+
+      // Auto-generate input schema if creating from scratch
+      const finalInputSchema = selectedTemplate === 'blank' 
+        ? generateInputSchema() 
+        : workflowData.input_schema;
 
       // Clean up workflow data - ensure all fields are properly set
       const cleanedData = {
         ...workflowData,
+        input_schema: finalInputSchema,
         workflow_steps: workflowData.workflow_steps.map(step => {
           const cleanStep = {
             step_number: step.step_number,
@@ -374,32 +501,183 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
     }
   };
 
-  // Render steps
-  const renderTemplateSelection = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Choose a Template</h3>
-      <div className="grid grid-cols-1 gap-3">
-        {Object.entries(TEMPLATES).map(([key, template]) => (
-          <button
-            key={key}
-            onClick={() => loadTemplate(key)}
-            className={`
-              p-4 text-left border-2 rounded-lg transition-all
-              ${selectedTemplate === key
-                ? 'border-blue-500 bg-blue-50'
-                : 'border-gray-200 hover:border-blue-300 bg-white'}
-            `}
-          >
-            <div className="font-semibold text-gray-900">{template.name}</div>
-            <div className="text-sm text-gray-600 mt-1">{template.description}</div>
-          </button>
-        ))}
-      </div>
-      {selectedTemplate === 'blank' && (
-        <button onClick={() => setStep(2)} className="btn-primary w-full">
-          Continue <FiArrowRight className="inline ml-2" />
-        </button>
+  // Render combined template selection and basic info
+  const renderTemplateAndBasicInfo = () => (
+    <div className="space-y-6">
+      {showTemplateList ? (
+        <>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Choose a Starting Point</h3>
+            <p className="text-sm text-gray-600 mt-1">Select a template or start from scratch</p>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+            <div className="flex items-start gap-2">
+              <FiAlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={16} />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium">Quick Tip</p>
+                <p className="text-xs mt-1">
+                  Templates include pre-configured steps and parameters. Use them to get started quickly, 
+                  or choose "Blank" to build from scratch with full control.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3">
+            {Object.entries(TEMPLATES).map(([key, template]) => (
+              <button
+                key={key}
+                onClick={() => loadTemplate(key)}
+                className="p-4 text-left border-2 rounded-lg transition-all border-gray-200 hover:border-blue-300 bg-white hover:bg-blue-50"
+              >
+                <div className="font-semibold text-gray-900">{template.name}</div>
+                <div className="text-sm text-gray-600 mt-1">{template.description}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Workflow Details</h3>
+              <p className="text-sm text-gray-600 mt-1">Configure basic information</p>
+            </div>
+            <button
+              onClick={() => {
+                setShowTemplateList(true);
+                setSelectedTemplate('blank');
+              }}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              ← Change Template
+            </button>
+          </div>
+          
+          {renderBasicInfoFields()}
+          
+          <div className="flex gap-2 pt-4 border-t">
+            <button
+              onClick={() => {
+                setShowTemplateList(true);
+              }}
+              className="btn-secondary"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => {
+                const typeError = validateDeliverableType(workflowData.deliverable_type);
+                if (typeError || !workflowData.display_name) {
+                  setSubmitError('Please fill in required fields correctly before continuing.');
+                  return;
+                }
+                setSubmitError(null);
+                if (selectedTemplate !== 'blank') {
+                  setStep(3); // Jump to review for templates
+                } else {
+                  setStep(2); // Go to steps config for blank
+                }
+              }}
+              className="btn-primary flex-1"
+            >
+              Continue <FiArrowRight className="inline ml-2" />
+            </button>
+          </div>
+        </>
       )}
+    </div>
+  );
+
+  const renderBasicInfoFields = () => (
+    <div className="space-y-4">
+      {submitError && (
+        <div className="bg-red-50 border border-red-200 rounded p-3 flex items-start gap-2">
+          <FiAlertCircle className="text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-800">Validation Error</p>
+            <p className="text-xs text-red-700 mt-1">{submitError}</p>
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Deliverable Type <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={workflowData.deliverable_type}
+          onChange={(e) => {
+            const value = e.target.value.toLowerCase().replace(/[^a-z_]/g, '');
+            setWorkflowData(prev => ({ ...prev, deliverable_type: value }));
+            const error = validateDeliverableType(value);
+            setErrors(prev => ({ ...prev, deliverable_type: error }));
+          }}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="foundation_design"
+        />
+        {errors.deliverable_type && (
+          <p className="text-xs text-red-500 mt-1">{errors.deliverable_type}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-1">
+          Unique identifier (lowercase letters and underscores only, 3-50 characters)
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Display Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={workflowData.display_name}
+          onChange={(e) => setWorkflowData(prev => ({ ...prev, display_name: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Foundation Design (IS 456)"
+        />
+        <p className="text-xs text-gray-500 mt-1">Human-readable name shown in the UI</p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea
+          value={workflowData.description}
+          onChange={(e) => setWorkflowData(prev => ({ ...prev, description: e.target.value }))}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          rows="2"
+          placeholder="Brief description of what this workflow does..."
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label>
+          <select
+            value={workflowData.discipline}
+            onChange={(e) => setWorkflowData(prev => ({ ...prev, discipline: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="civil">Civil</option>
+            <option value="structural">Structural</option>
+            <option value="architectural">Architectural</option>
+            <option value="mep">MEP</option>
+            <option value="general">General</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select
+            value={workflowData.status}
+            onChange={(e) => setWorkflowData(prev => ({ ...prev, status: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="draft">Draft (for testing)</option>
+            <option value="testing">Testing</option>
+            <option value="active">Active (production)</option>
+          </select>
+        </div>
+      </div>
     </div>
   );
 
@@ -505,6 +783,22 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
         <button onClick={addStep} className="btn-sm btn-primary">
           <FiPlus className="inline mr-1" /> Add Step
         </button>
+      </div>
+
+      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+        <div className="flex items-start gap-2">
+          <FiCheck className="text-green-600 flex-shrink-0 mt-0.5" size={16} />
+          <div className="text-sm text-green-800">
+            <p className="font-medium">Building Workflows</p>
+            <ul className="text-xs mt-1 space-y-1 list-disc list-inside">
+              <li>Steps execute sequentially in order</li>
+              <li>Each step calls an engine function and stores the result</li>
+              <li>Use <code className="bg-green-100 px-1 rounded">$input.param_name</code> for user inputs (auto-detected)</li>
+              <li>Later steps can use results from earlier steps via $step&#123;N&#125;</li>
+              <li>Use autocomplete (type $) in parameter values for smart suggestions</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       {workflowData.workflow_steps.length === 0 ? (
@@ -666,31 +960,89 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
                 </div>
               </div>
 
-              {/* Input Mapping */}
+              {/* Input Mapping with Autocomplete */}
               <div className="mt-3">
                 <label className="block text-xs font-medium text-gray-700 mb-2">
-                  Input Mapping (use $input.field, $step1.field)
+                  Input Mapping
+                  <span className="text-gray-500 font-normal ml-1">
+                    (Type $ to see suggestions)
+                  </span>
                 </label>
                 <div className="space-y-2">
                   {Object.entries(step.input_mapping).map(([key, value]) => (
-                    <div key={key} className="flex gap-2">
+                    <div key={key} className="flex gap-2 relative">
                       <input
                         type="text"
                         value={key}
                         readOnly
                         className="flex-1 px-2 py-1 text-xs bg-gray-100 border border-gray-300 rounded"
                       />
-                      <input
-                        type="text"
-                        value={value}
-                        onChange={(e) => {
-                          const newMapping = { ...step.input_mapping };
-                          newMapping[key] = e.target.value;
-                          updateStep(index, 'input_mapping', newMapping);
-                        }}
-                        className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="$input.field"
-                      />
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={value}
+                          onChange={(e) => {
+                            const newMapping = { ...step.input_mapping };
+                            newMapping[key] = e.target.value;
+                            updateStep(index, 'input_mapping', newMapping);
+                            
+                            // Show autocomplete when typing $
+                            if (e.target.value.includes('$')) {
+                              setShowAutocomplete({ stepIndex: index, key });
+                            } else {
+                              setShowAutocomplete({});
+                            }
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value.includes('$')) {
+                              setShowAutocomplete({ stepIndex: index, key });
+                            }
+                          }}
+                          onBlur={() => {
+                            // Delay to allow clicking on suggestions
+                            setTimeout(() => setShowAutocomplete({}), 200);
+                          }}
+                          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="$input.field or $step1.field"
+                        />
+                        
+                        {/* Autocomplete Dropdown */}
+                        {showAutocomplete.stepIndex === index && showAutocomplete.key === key && (
+                          <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                            {getAutocompleteSuggestions(index, value).map((suggestion, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  const newMapping = { ...step.input_mapping };
+                                  newMapping[key] = suggestion.value;
+                                  updateStep(index, 'input_mapping', newMapping);
+                                  setShowAutocomplete({});
+                                }}
+                                className="w-full px-3 py-2 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-mono text-blue-600">{suggestion.label}</span>
+                                  <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                    suggestion.type === 'prefix' ? 'bg-green-100 text-green-700' :
+                                    suggestion.type === 'step' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-purple-100 text-purple-700'
+                                  }`}>
+                                    {suggestion.type}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-gray-500 mt-0.5">{suggestion.description}</div>
+                              </button>
+                            ))}
+                            {getAutocompleteSuggestions(index, value).length === 0 && (
+                              <div className="px-3 py-2 text-xs text-gray-500">
+                                No suggestions. Valid patterns: $input.field, $step1.field, $context.key
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={() => removeInputParam(index, key)}
                         className="text-red-600 hover:text-red-800"
@@ -722,11 +1074,11 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
       )}
 
       <div className="flex gap-2">
-        <button onClick={() => setStep(2)} className="btn-secondary">
+        <button onClick={() => setStep(1)} className="btn-secondary">
           Back
         </button>
         <button
-          onClick={() => setStep(4)}
+          onClick={() => setStep(3)}
           disabled={workflowData.workflow_steps.length === 0}
           className="btn-primary flex-1"
         >
@@ -736,33 +1088,28 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
     </div>
   );
 
-  const renderInputSchema = () => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Input Schema (Optional)</h3>
-      <p className="text-sm text-gray-600">
-        Define input validation schema. Leave empty to skip validation.
-      </p>
-
-      <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-        <p className="text-xs text-yellow-800">
-          💡 For now, you can define the schema manually or skip this step. The workflow will still work without validation.
-        </p>
-      </div>
-
-      <div className="flex gap-2">
-        <button onClick={() => setStep(3)} className="btn-secondary">
-          Back
-        </button>
-        <button onClick={() => setStep(5)} className="btn-primary flex-1">
-          Continue <FiArrowRight className="inline ml-2" />
-        </button>
-      </div>
-    </div>
-  );
-
-  const renderReview = () => (
+  const renderReview = () => {
+    // Generate preview of input schema
+    const previewInputSchema = selectedTemplate === 'blank' 
+      ? generateInputSchema() 
+      : workflowData.input_schema;
+    
+    return (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold text-gray-900">Review & Create</h3>
+
+      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+        <div className="flex items-start gap-2">
+          <FiAlertCircle className="text-purple-600 flex-shrink-0 mt-0.5" size={16} />
+          <div className="text-sm text-purple-800">
+            <p className="font-medium">Before You Create</p>
+            <p className="text-xs mt-1">
+              Review the JSON below to ensure all steps are correctly configured. 
+              Once created, you can test with "draft" status, then promote to "active" when ready.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {submitError && (
         <div className="bg-red-50 border border-red-200 rounded p-3 flex items-start gap-2">
@@ -797,8 +1144,38 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
             <dt className="font-medium text-gray-700 w-1/3">Status:</dt>
             <dd className="text-gray-900 capitalize">{workflowData.status}</dd>
           </div>
+          <div className="flex">
+            <dt className="font-medium text-gray-700 w-1/3">Input Parameters:</dt>
+            <dd className="text-gray-900">
+              {Object.keys(previewInputSchema.properties || {}).length || 'None'}
+              {Object.keys(previewInputSchema.properties || {}).length > 0 && (
+                <span className="text-xs text-gray-500 ml-1">
+                  ({Object.keys(previewInputSchema.properties).join(', ')})
+                </span>
+              )}
+            </dd>
+          </div>
         </dl>
       </div>
+
+      {selectedTemplate === 'blank' && Object.keys(previewInputSchema.properties || {}).length > 0 && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+            <FiCheck /> Auto-Generated Input Schema
+          </h4>
+          <p className="text-xs text-green-700 mb-2">
+            Based on your step configurations, we automatically detected these required input parameters:
+          </p>
+          <div className="bg-white rounded p-2 text-xs">
+            <pre className="overflow-x-auto">
+              {JSON.stringify(previewInputSchema, null, 2)}
+            </pre>
+          </div>
+          <p className="text-xs text-green-600 mt-2">
+            Users will be prompted to provide these values when executing the workflow.
+          </p>
+        </div>
+      )}
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h4 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
@@ -820,7 +1197,7 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
 
       <div className="flex gap-2">
         {selectedTemplate === 'blank' ? (
-          <button onClick={() => setStep(4)} className="btn-secondary">
+          <button onClick={() => setStep(2)} className="btn-secondary">
             Back
           </button>
         ) : (
@@ -846,7 +1223,8 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
         </button>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -856,11 +1234,9 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Create New Workflow</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Step {step} of 5: {
-                step === 1 ? 'Template Selection' :
-                step === 2 ? 'Basic Information' :
-                step === 3 ? 'Workflow Steps' :
-                step === 4 ? 'Input Schema' :
+              Step {step} of 3: {
+                step === 1 ? 'Template & Basic Info' :
+                step === 2 ? 'Configure Steps' :
                 'Review & Create'
               }
             </p>
@@ -878,17 +1254,15 @@ export default function WorkflowCreateModal({ isOpen, onClose, onSuccess }) {
         <div className="h-1 bg-gray-200">
           <div
             className="h-full bg-blue-500 transition-all duration-300"
-            style={{ width: `${(step / 5) * 100}%` }}
+            style={{ width: `${(step / 3) * 100}%` }}
           />
         </div>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {step === 1 && renderTemplateSelection()}
-          {step === 2 && renderBasicInfo()}
-          {step === 3 && renderStepsConfig()}
-          {step === 4 && renderInputSchema()}
-          {step === 5 && renderReview()}
+          {step === 1 && renderTemplateAndBasicInfo()}
+          {step === 2 && renderStepsConfig()}
+          {step === 3 && renderReview()}
         </div>
       </div>
     </div>

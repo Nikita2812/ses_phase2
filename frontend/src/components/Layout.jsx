@@ -7,6 +7,7 @@ import {
   FiLayers,
   FiActivity,
   FiCheckSquare,
+  FiShield,
   FiSettings,
   FiMenu,
   FiX,
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Workflows', href: '/workflows', icon: FiLayers },
   { name: 'Executions', href: '/executions', icon: FiActivity },
   { name: 'Approvals', href: '/approvals', icon: FiCheckSquare },
+  { name: 'Risk Rules', href: '/risk-rules', icon: FiShield },
   { name: 'Settings', href: '/settings', icon: FiSettings },
 ];
 
@@ -100,7 +102,7 @@ export default function Layout() {
           <div className="p-4 border-t">
             <div className="text-xs text-gray-500">
               <p>Version 1.0.0</p>
-              <p>Phase 2 Sprint 2 Complete</p>
+              <p>Phase 3 Sprint 2 Complete</p>
             </div>
           </div>
         </div>

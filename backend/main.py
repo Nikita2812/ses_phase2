@@ -23,6 +23,7 @@ from app.api.enhanced_chat_routes import router as enhanced_chat_router
 from app.api.workflow_routes import router as workflow_router
 from app.api.approval_routes import approval_router
 from app.api.learning_routes import learning_router
+from app.api.risk_rules_routes import risk_rules_router  # Phase 3 Sprint 2: Dynamic Risk Rules
 
 
 # =============================================================================
@@ -82,6 +83,7 @@ app.include_router(enhanced_chat_router)  # Phase 3: Enhanced Chat with Tool Int
 app.include_router(workflow_router)  # Phase 2 Sprint 2: Workflow Management
 app.include_router(approval_router)  # Phase 2 Sprint 4: HITL Approval Workflow
 app.include_router(learning_router)  # Phase 3: Continuous Learning Loop (CLL)
+app.include_router(risk_rules_router)  # Phase 3 Sprint 2: Dynamic Risk Rules Management
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")

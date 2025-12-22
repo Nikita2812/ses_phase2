@@ -110,6 +110,50 @@ export default function WorkflowsPage() {
         </button>
       </div>
 
+      {/* Getting Started Guide */}
+      {workflows.length === 0 && !isLoading && !error && (
+        <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+              <FiLayers className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900">Welcome to Workflow Manager!</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Workflows automate engineering calculations through configurable multi-step processes.
+              </p>
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="bg-white rounded p-3 border border-blue-200">
+                  <div className="font-medium text-sm text-blue-900">1. Choose Template</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    Start with a pre-built workflow or create from scratch
+                  </div>
+                </div>
+                <div className="bg-white rounded p-3 border border-blue-200">
+                  <div className="font-medium text-sm text-blue-900">2. Configure Steps</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    Add calculation steps with smart parameter mapping
+                  </div>
+                </div>
+                <div className="bg-white rounded p-3 border border-blue-200">
+                  <div className="font-medium text-sm text-blue-900">3. Execute</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    Run workflows with real-time progress tracking
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="mt-4 btn-primary"
+              >
+                <FiPlus className="inline mr-2" />
+                Create Your First Workflow
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="card bg-yellow-50 border-yellow-200">
           <div className="flex items-center gap-2 text-yellow-800">

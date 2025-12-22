@@ -493,9 +493,18 @@ class AgentState(TypedDict):
 - 2,500+ lines of production code
 - Remaining: API routes, workflow integration, demo script
 
-**Phase 3 Sprint 2 ("Dynamic Risk & Autonomy")**: Planned
-- Risk-based routing without code changes
-- Operationalize `risk_rules` JSONB column
+**Phase 3 Sprint 2 ("Dynamic Risk & Autonomy")**: ✅ COMPLETE
+- Dynamic risk rules engine for configuration-based routing
+- RuleParser for evaluating complex conditions ($input.*, $step*.*, $context.*, $assessment.*)
+- DynamicRiskEngine for loading and evaluating rules from database JSONB
+- RoutingEngine for making routing decisions based on rule evaluations
+- SafetyAuditLogger for comprehensive compliance tracking
+- Per-step risk evaluation with intervention support
+- Exception rules for auto-approve overrides
+- Escalation rules for critical scenarios
+- 11 API endpoints for risk rules management
+- Complete audit trail with effectiveness tracking
+- 5,000+ lines of production code
 
 **Phase 3 Sprint 3 ("Rapid Expansion")**: Planned
 - Add new deliverables (RCC Beams, Steel Columns) via configuration only
