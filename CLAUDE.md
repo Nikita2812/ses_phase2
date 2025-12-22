@@ -18,23 +18,39 @@ This repository contains the **CSA AIaaS Platform** - an AI-powered automation s
 .
 ├── backend/                 # Python backend implementation
 │   ├── app/
-│   │   ├── api/            # FastAPI chat routes
-│   │   ├── chat/           # Conversational RAG agent
+│   │   ├── api/            # FastAPI routes (chat, workflow, approval)
+│   │   ├── chat/           # Conversational RAG agent + Enhanced Chat
 │   │   ├── core/           # Config, database, constants
+│   │   ├── engines/        # Calculation engines (foundation, schedule)
 │   │   ├── etl/            # Document processing pipeline
+│   │   ├── execution/      # Dynamic execution engine (Sprint 3)
 │   │   ├── graph/          # LangGraph state machine
-│   │   ├── nodes/          # Workflow nodes (ambiguity, retrieval, execution)
-│   │   ├── services/       # Embedding generation
+│   │   ├── nodes/          # Workflow nodes (ambiguity, retrieval, calculation)
+│   │   ├── risk/           # Risk assessment (Sprint 4)
+│   │   ├── schemas/        # Pydantic models (workflow, approval)
+│   │   ├── services/       # Business logic (workflow, schema, approval)
 │   │   └── utils/          # Text chunking, LLM utilities
-│   ├── tests/              # Test suite
+│   ├── tests/              # Test suite (unit, integration)
 │   ├── main.py             # FastAPI entry point
-│   ├── init.sql            # Sprint 1 database schema
-│   └── init_sprint2.sql    # Sprint 2 schema (vector DB)
-├── documents/              # Specification documents
+│   ├── init*.sql           # Database schemas (5 files)
+│   ├── demo_*.py           # Demonstration scripts
+│   └── requirements.txt    # Python dependencies
+├── frontend/               # React frontend
+│   ├── src/
+│   │   ├── components/    # Reusable UI components
+│   │   ├── pages/         # Page components (Dashboard, Chat, Workflows, etc.)
+│   │   ├── services/      # API client layer
+│   │   ├── store/         # State management (Zustand)
+│   │   └── App.jsx        # Main app component
+│   ├── package.json       # Node dependencies
+│   └── vite.config.js     # Build configuration
+├── documents/              # Specification documents (46+ files)
 │   ├── CSA.md             # CSA department operations overview
 │   ├── CSA2.md            # AI automation workflows
-│   └── CSA_AIaaS_Platform_Implementation_Guide.md  # Sprint guide
-└── SPRINT*.md             # Sprint implementation summaries
+│   └── CSA_AIaaS_Platform_Implementation_Guide.md
+├── create_workflow.py      # Workflow creation utility
+├── test_workflow_api.py    # Workflow API testing utility
+└── *.md                    # Documentation (30+ files)
 ```
 
 ## Tech Stack
@@ -90,10 +106,16 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **API URLs**:
-- API: http://localhost:8000
-- Docs: http://localhost:8000/docs
-- Chat UI: http://localhost:8000/chat
-- Health: http://localhost:8000/health
+- API Root: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- Health Check: http://localhost:8000/health
+
+**Key API Endpoints**:
+- `/api/v1/chat/enhanced` - Enhanced conversational chat
+- `/api/v1/workflows/` - Workflow CRUD operations
+- `/api/v1/workflows/execute` - Execute workflows
+- `/api/v1/approvals/` - HITL approval management
+- `/api/v1/foundation/design` - Foundation design calculator
 
 ### Testing
 
@@ -212,7 +234,140 @@ python
 >>> schema = {"type": "object", "required": ["field1"], "properties": {"field1": {"type": "number"}}}
 >>> result = engine.validate_input({"field1": 123}, schema)
 >>> print(f"Valid: {result.valid}")
+
+# ============================================================================
+# SPRINT 4: Safety Valve (HITL Approvals)
+# ============================================================================
+
+# Run Phase 2 Sprint 4 demonstration
+python demo_phase2_sprint4.py  # If available
+
+# Test risk assessment
+python
+>>> from app.risk.risk_assessor import RiskAssessor
+>>> assessor = RiskAssessor()
+>>> risk_score = assessor.assess_workflow_risk(workflow_output, workflow_type)
+>>> print(f"Risk Score: {risk_score:.2f}")
+
+# Create approval request manually
+python
+>>> from app.services.approval.workflow import ApprovalWorkflowService
+>>> service = ApprovalWorkflowService()
+>>> request = service.create_approval_request(
+...     execution_id="exec_123",
+...     risk_assessment_id="risk_456",
+...     created_by="user123"
+... )
+
+# Check approval status
+python
+>>> status = service.get_approval_status(request.request_id)
+>>> print(f"Status: {status.current_status}")
+
+# ============================================================================
+# ENHANCED CHAT: Conversational Agent
+# ============================================================================
+
+# Run enhanced chat demo
+python demo_enhanced_chat.py
+
+# Start interactive chat session
+curl -X POST http://localhost:8000/api/v1/chat/enhanced \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What is M25 concrete?", "user_id": "user123"}'
+
+# Multi-turn conversation (Python)
+python
+>>> import requests
+>>> session_id = None
+>>> for msg in ["I need to design a foundation", "Dead load 600 kN, live load 400 kN"]:
+...     r = requests.post("http://localhost:8000/api/v1/chat/enhanced", json={
+...         "message": msg, "session_id": session_id, "user_id": "user123"
+...     })
+...     session_id = r.json()['session_id']
+...     print(r.json()['response'])
+
+# Get conversation history
+curl http://localhost:8000/api/v1/chat/enhanced/sessions/{session_id}
+
+# Check chat health
+curl http://localhost:8000/api/v1/chat/enhanced/health
 ```
+
+### Frontend Development
+
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start development server (with hot reload)
+npm run dev
+# Frontend runs at: http://localhost:3000
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
+```
+
+## Key Files to Know
+
+Understanding these files will help you navigate the codebase quickly:
+
+### Backend Entry Points
+- [backend/main.py](backend/main.py) - FastAPI application entry point, all routes registered here
+- [backend/app/core/config.py](backend/app/core/config.py) - Configuration management (environment variables)
+- [backend/app/core/database.py](backend/app/core/database.py) - Database connection and audit logging
+
+### API Routes
+- [backend/app/api/enhanced_chat_routes.py](backend/app/api/enhanced_chat_routes.py) - Enhanced chat endpoints (7-node workflow)
+- [backend/app/api/workflow_routes.py](backend/app/api/workflow_routes.py) - Workflow management endpoints
+- [backend/app/api/approval_routes.py](backend/app/api/approval_routes.py) - HITL approval endpoints
+- [backend/app/api/chat_routes.py](backend/app/api/chat_routes.py) - Original chat endpoints
+
+### Core Business Logic
+- [backend/app/chat/enhanced_agent.py](backend/app/chat/enhanced_agent.py) - LangGraph-based conversational agent (intent detection, entity extraction)
+- [backend/app/services/workflow_orchestrator.py](backend/app/services/workflow_orchestrator.py) - Dynamic workflow execution
+- [backend/app/services/schema_service.py](backend/app/services/schema_service.py) - Workflow schema CRUD + versioning
+- [backend/app/services/approval/workflow.py](backend/app/services/approval/workflow.py) - Approval workflow state machine
+
+### Calculation Engines
+- [backend/app/engines/foundation/foundation_designer.py](backend/app/engines/foundation/foundation_designer.py) - IS 456:2000 foundation design
+- [backend/app/engines/registry.py](backend/app/engines/registry.py) - Engine registry for dynamic function lookup
+
+### Execution Engine (Phase 2 Sprint 3)
+- [backend/app/execution/dependency_graph.py](backend/app/execution/dependency_graph.py) - Dependency analysis and parallelization
+- [backend/app/execution/parallel_executor.py](backend/app/execution/parallel_executor.py) - Async parallel execution
+- [backend/app/execution/condition_parser.py](backend/app/execution/condition_parser.py) - Conditional expression parser
+- [backend/app/execution/validation_engine.py](backend/app/execution/validation_engine.py) - JSON Schema validation
+- [backend/app/execution/retry_manager.py](backend/app/execution/retry_manager.py) - Retry logic with exponential backoff
+
+### Risk Assessment (Phase 2 Sprint 4)
+- [backend/app/risk/risk_assessor.py](backend/app/risk/risk_assessor.py) - 6-factor risk assessment
+- [backend/app/risk/calculators.py](backend/app/risk/calculators.py) - Individual risk calculators
+
+### Pydantic Models
+- [backend/app/schemas/workflow/schema_models.py](backend/app/schemas/workflow/schema_models.py) - Workflow schema models
+- [backend/app/schemas/approval/models.py](backend/app/schemas/approval/models.py) - Approval models
+
+### Frontend Pages
+- [frontend/src/App.jsx](frontend/src/App.jsx) - Main app with routing
+- [frontend/src/pages/Dashboard.jsx](frontend/src/pages/Dashboard.jsx) - Dashboard page
+- [frontend/src/pages/WorkflowsPage.jsx](frontend/src/pages/WorkflowsPage.jsx) - Workflow management UI
+- [frontend/src/pages/ExecutionsPage.jsx](frontend/src/pages/ExecutionsPage.jsx) - Execution monitoring
+- [frontend/src/pages/ApprovalsPage.jsx](frontend/src/pages/ApprovalsPage.jsx) - Approval dashboard
+
+### Utility Scripts
+- [create_workflow.py](create_workflow.py) - Interactive workflow creation tool
+- [test_workflow_api.py](test_workflow_api.py) - Workflow API testing script
+- [demo_enhanced_chat.py](backend/demo_enhanced_chat.py) - Enhanced chat demonstration
 
 ## Core Architecture
 
@@ -298,10 +453,59 @@ class AgentState(TypedDict):
 - 5000+ lines of production code
 - Performance: 1.5-3x speedup via parallelization
 
-**Phase 2 Sprint 4 ("The Safety Valve")**: Pending
-- Enhanced risk assessment
-- HITL approval interface
+**Phase 2 Sprint 4 ("The Safety Valve")**: ✅ Complete
+- Enhanced risk assessment engine (6 risk factors)
+- HITL approval workflow with state machine
 - Cross-discipline validation
+- Approval dashboard and API (11 endpoints)
+- Complete audit trail and notifications
+- 5,300+ lines of production code
+
+**Enhanced Conversational Agent**: ✅ Complete
+- LangGraph-based 7-node workflow (intent detection, entity extraction, tool execution)
+- Multi-turn conversation with persistent memory
+- Context accumulation across sessions
+- Smart parameter collection for workflow execution
+- Integrated RAG for knowledge questions
+- 3 new database tables for session/message/context storage
+
+**Continuous Learning Loop (CLL)**: ✅ FULLY IMPLEMENTED
+- User preference extraction from natural language ("keep answers short", "use bullet points", etc.)
+- Correction memory system (learns from user corrections)
+- LLM-powered preference detection (format, length, style)
+- Confidence-based preference tracking (0.0-1.0, self-adjusting based on feedback)
+- Pattern detection for recurring corrections (auto-creates preferences after 3+ corrections)
+- PreferenceManager service with conflict resolution
+- CorrectionLearner service with pattern detection and suggestions
+- Enhanced Chat integration (2 new LangGraph nodes: extract_preferences, apply_preferences)
+- 12 REST API endpoints for CLL management
+- 4 new database tables (user_preferences, correction_memory, preference_application_log, learning_patterns)
+- 3,500+ lines of production code
+- Comprehensive demonstration script with 6 scenarios
+
+### Phase 3 ("The Learning System") - In Progress
+
+**Phase 3 Sprint 1 ("The Feedback Pipeline")**: ✅ Core Implementation Complete
+- Feedback capture system (3 database tables, 7 helper functions)
+- ReviewActionHandler service for validation failures and HITL corrections
+- FeedbackVectorService for creating searchable mistake-correction pairs
+- PatternDetector for identifying recurring issues
+- 2,500+ lines of production code
+- Remaining: API routes, workflow integration, demo script
+
+**Phase 3 Sprint 2 ("Dynamic Risk & Autonomy")**: Planned
+- Risk-based routing without code changes
+- Operationalize `risk_rules` JSONB column
+
+**Phase 3 Sprint 3 ("Rapid Expansion")**: Planned
+- Add new deliverables (RCC Beams, Steel Columns) via configuration only
+- Prove "Infinite Extensibility"
+
+**Phase 3 Sprint 4 ("A/B Testing & Versioning")**: Planned
+- Schema versioning for optimization testing
+- Performance dashboard for version comparison
+
+**Key Goal**: Achieve "Infinite Extensibility" and continuous learning from every mistake.
 
 ## Key Patterns and Conventions
 
@@ -347,9 +551,38 @@ The system uses OpenRouter API (OpenAI-compatible) for all LLM calls:
 - `documents` - Source document metadata
 - `knowledge_chunks` - Vector embeddings (VECTOR(1536)) with JSONB metadata
 
+### Workflow Tables (Phase 2 Sprint 2)
+- `deliverable_schemas` - Workflow definitions (JSONB) with versioning
+- `workflow_executions` - Execution tracking with status and outputs
+- `workflow_step_logs` - Individual step execution logs
+
+### Approval Tables (Phase 2 Sprint 4)
+- `approval_requests` - HITL approval workflow state machine
+- `risk_assessments` - 6-factor risk analysis results
+- `approvers` - Approver registry with specializations
+- `notifications` - User notifications for approvals
+- `validation_issues` - Validation warnings and errors
+
+### Chat Tables (Enhanced Chat)
+- `chat_sessions` - Persistent conversation sessions
+- `chat_messages` - Full message history with role tracking
+- `chat_context` - Extracted entities and accumulated context
+
+### Feedback Tables (Phase 3 Sprint 1)
+- `feedback_logs` - Learning data from validation failures and HITL corrections
+- `feedback_vectors` - Mistake-correction vector pairs (VECTOR(1536)) for similarity search
+- `feedback_patterns` - Aggregated recurring patterns with prevention strategies
+
 ### Key Functions
 - `search_knowledge_chunks(query_embedding, limit, filters)` - Semantic search
 - `get_document_stats()` - Knowledge base statistics
+- `get_chat_session_history(session_id)` - Retrieve conversation history
+- `get_active_context(session_id)` - Get accumulated context for session
+- `log_validation_feedback(...)` - Log validation failure for learning
+- `log_hitl_feedback(...)` - Log HITL correction for learning
+- `get_unprocessed_feedback(limit)` - Get feedback needing vector creation
+- `detect_recurring_patterns()` - Identify recurring mistake patterns
+- `get_feedback_stats(schema_key, days)` - Get feedback statistics
 
 ## Domain Context
 
@@ -578,6 +811,194 @@ service.rollback_to_version("foundation_design", target_version=3, rolled_back_b
 - ✅ Risk-based HITL approval
 - ✅ Full audit trail
 
+### Using the Enhanced Conversational Chat
+
+The Enhanced Chat system combines RAG, tool execution, and multi-turn conversation with persistent memory.
+
+**Starting a Chat Session:**
+
+```python
+import requests
+
+# Single message (auto-creates session)
+response = requests.post("http://localhost:8000/api/v1/chat/enhanced", json={
+    "message": "What is M25 concrete?",
+    "user_id": "engineer123"
+})
+
+print(f"Response: {response.json()['response']}")
+print(f"Session ID: {response.json()['session_id']}")
+```
+
+**Multi-Turn Conversation:**
+
+```python
+session_id = None
+messages = [
+    "I need to design a foundation",
+    "Dead load is 600 kN, live load is 400 kN",
+    "Column dimensions are 400mm x 400mm",
+    "SBC is 200 kPa, use M25 and Fe415"
+]
+
+for msg in messages:
+    response = requests.post("http://localhost:8000/api/v1/chat/enhanced", json={
+        "message": msg,
+        "session_id": session_id,
+        "user_id": "engineer123"
+    })
+    session_id = response.json()['session_id']
+    print(f"User: {msg}")
+    print(f"Agent: {response.json()['response']}\n")
+
+    # Check if tool was executed
+    if response.json().get('tool_executed'):
+        print(f"Tool: {response.json()['tool_name']}")
+        print(f"Result: {response.json()['tool_result']}\n")
+```
+
+**Key Features:**
+- **Intent Detection**: Automatically classifies user intent (ask_knowledge, execute_workflow, calculate, etc.)
+- **Entity Extraction**: Extracts technical parameters from natural language
+- **Context Accumulation**: Remembers information across turns
+- **Smart Execution**: Executes workflows/calculations when all parameters are collected
+- **RAG Integration**: Retrieves relevant knowledge for questions
+
+**Chat Endpoints:**
+- `POST /api/v1/chat/enhanced` - Send message
+- `GET /api/v1/chat/enhanced/sessions?user_id=X` - List user sessions
+- `GET /api/v1/chat/enhanced/sessions/{id}` - Get conversation history
+- `GET /api/v1/chat/enhanced/sessions/{id}/context` - View accumulated context
+- `GET /api/v1/chat/enhanced/health` - Health check
+
+### Managing HITL Approvals (Phase 2 Sprint 4)
+
+The approval system provides risk-based human oversight for high-risk workflows.
+
+**Checking Approval Requirements:**
+
+```python
+from app.services.approval.workflow import ApprovalWorkflowService
+
+service = ApprovalWorkflowService()
+
+# After workflow execution
+execution_result = execute_workflow("foundation_design", input_data, "user123")
+
+if execution_result.requires_approval:
+    # Approval request auto-created
+    print(f"Approval required - Risk Score: {execution_result.risk_score}")
+    print(f"Request ID: {execution_result.approval_request_id}")
+```
+
+**Approving/Rejecting Requests:**
+
+```python
+# Approve
+service.approve_request(
+    request_id="req_123",
+    approver_id="approver_456",
+    comments="Design meets all safety requirements",
+    conditions=["Verify soil report before construction"]
+)
+
+# Reject
+service.reject_request(
+    request_id="req_123",
+    approver_id="approver_456",
+    reason="SBC value too high for soil type",
+    required_changes=["Reduce SBC to 150 kPa", "Add additional boreholes"]
+)
+```
+
+**API Endpoints:**
+- `GET /api/v1/approvals/pending` - Get pending approvals
+- `GET /api/v1/approvals/{request_id}` - Get approval details
+- `POST /api/v1/approvals/{request_id}/approve` - Approve request
+- `POST /api/v1/approvals/{request_id}/reject` - Reject request
+- `GET /api/v1/approvals/stats` - Approval statistics
+
+### Using the Dynamic Execution Engine (Phase 2 Sprint 3)
+
+The execution engine provides advanced features for workflow execution.
+
+**Dependency Analysis:**
+
+```python
+from app.execution import DependencyAnalyzer
+
+# Analyze workflow for parallelization opportunities
+graph, stats = DependencyAnalyzer.analyze(workflow_steps)
+
+print(f"Total steps: {stats.total_steps}")
+print(f"Max parallel: {stats.max_width}")
+print(f"Critical path: {stats.max_depth}")
+print(f"Parallelization potential: {stats.parallelization_factor:.2%}")
+print(f"Estimated speedup: {DependencyAnalyzer.estimate_speedup(stats):.2f}x")
+
+# Get execution order (parallel groups)
+execution_order = graph.get_execution_order()
+# [[1, 2], [3], [4, 5]] means steps 1&2 run in parallel, then 3, then 4&5
+```
+
+**Retry Configuration:**
+
+```python
+from app.execution import RetryManager, RetryConfig
+import asyncio
+
+manager = RetryManager()
+config = RetryConfig(
+    retry_count=3,
+    base_delay_seconds=1.0,
+    max_delay_seconds=10.0,
+    exponential_base=2.0
+)
+
+async def execute_with_retry():
+    result, metadata = await manager.execute_with_retry(
+        your_function,
+        config,
+        arg1="value1"
+    )
+    print(f"Attempts: {metadata.attempt_count}")
+    print(f"Total time: {metadata.total_elapsed_seconds}s")
+    return result
+
+asyncio.run(execute_with_retry())
+```
+
+**Conditional Expressions:**
+
+```python
+from app.execution import ConditionEvaluator
+
+evaluator = ConditionEvaluator()
+
+# Context for evaluation
+context = {
+    "input": {"load": 1500, "grade": "M25"},
+    "step1": {"footing_size": 2.5},
+    "step2": {"steel_required": 150},
+    "context": {"user_id": "eng123"}
+}
+
+# Simple comparison
+result = evaluator.evaluate("$input.load > 1000", context)  # True
+
+# Complex expressions
+result = evaluator.evaluate(
+    "($input.load > 1000 AND $input.grade == 'M25') OR $step1.footing_size < 2.0",
+    context
+)  # True
+
+# Nested conditions
+result = evaluator.evaluate(
+    "($input.load > 500 AND ($input.grade == 'M25' OR $input.grade == 'M30'))",
+    context
+)  # True
+```
+
 ## Important Notes
 
 ### Configuration Management
@@ -637,18 +1058,61 @@ The ambiguity node handles markdown-wrapped JSON automatically. If it persists:
 
 ## Reference Documentation
 
+### Backend Documentation
 - **Implementation Guide**: [documents/CSA_AIaaS_Platform_Implementation_Guide.md](documents/CSA_AIaaS_Platform_Implementation_Guide.md)
-- **Phase 1 Sprint Summaries**:
-  - [SPRINT1_IMPLEMENTATION_SUMMARY.md](SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Neuro-Skeleton
-  - [SPRINT2_IMPLEMENTATION_SUMMARY.md](SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Memory Implantation
-  - [SPRINT3_IMPLEMENTATION_SUMMARY.md](SPRINT3_IMPLEMENTATION_SUMMARY.md) - The Voice
-- **Phase 2 Sprint Summaries**:
-  - [PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Math Engine
-  - [PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Configuration Layer
 - **Architecture**: [backend/ARCHITECTURE.md](backend/ARCHITECTURE.md)
 - **Testing Guide**: [backend/TESTING_GUIDE.md](backend/TESTING_GUIDE.md)
 - **Quick Reference**: [backend/QUICK_REFERENCE.md](backend/QUICK_REFERENCE.md)
-- **Meeting Minutes**: [documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md](documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md)
+
+### Phase 1 Sprint Summaries
+- [SPRINT1_IMPLEMENTATION_SUMMARY.md](SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Neuro-Skeleton
+- [SPRINT2_IMPLEMENTATION_SUMMARY.md](SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Memory Implantation (Vector DB + RAG)
+- [SPRINT3_IMPLEMENTATION_SUMMARY.md](SPRINT3_IMPLEMENTATION_SUMMARY.md) - The Voice (Conversational AI)
+
+### Phase 2 Sprint Summaries
+- [PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Math Engine
+- [PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT2_IMPLEMENTATION_SUMMARY.md) - The Configuration Layer
+- [PHASE2_SPRINT3_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT3_IMPLEMENTATION_SUMMARY.md) - The Dynamic Executor
+- [PHASE2_SPRINT4_IMPLEMENTATION_SUMMARY.md](PHASE2_SPRINT4_IMPLEMENTATION_SUMMARY.md) - The Safety Valve (HITL)
+- [PHASE2_SPRINT3_DESIGN.md](PHASE2_SPRINT3_DESIGN.md) - Sprint 3 Technical Design
+- [PHASE2_SPRINT4_DESIGN.md](PHASE2_SPRINT4_DESIGN.md) - Sprint 4 Technical Design
+
+### Phase 3 Implementation & Planning
+- [documents/phase3_implementation_report.md](documents/phase3_implementation_report.md) - The Learning System (Planning Document)
+- [PHASE3_SPRINT1_IMPLEMENTATION_SUMMARY.md](PHASE3_SPRINT1_IMPLEMENTATION_SUMMARY.md) - The Feedback Pipeline (Core Implementation Complete)
+  - Sprint 1: Feedback Pipeline (Continuous Learning Loop) - ✅ Core Complete
+  - Sprint 2: Dynamic Risk & Autonomy - Planned
+  - Sprint 3: Rapid Expansion (Infinite Extensibility) - Planned
+  - Sprint 4: A/B Testing & Versioning - Planned
+
+### Enhanced Chat Documentation
+- [CHAT_ENHANCEMENT_SUMMARY.md](CHAT_ENHANCEMENT_SUMMARY.md) - Enhanced Chat Implementation
+- [ENHANCED_CHAT_GUIDE.md](ENHANCED_CHAT_GUIDE.md) - Complete Usage Guide
+- [ENHANCED_CHAT_SETUP.md](ENHANCED_CHAT_SETUP.md) - Setup Instructions
+- [ENHANCED_CHAT_QUICKSTART.md](ENHANCED_CHAT_QUICKSTART.md) - 5-Minute Quick Start
+
+### Workflow & API Documentation
+- [WORKFLOW_CREATION_GUIDE.md](WORKFLOW_CREATION_GUIDE.md) - Creating Workflows
+- [WORKFLOW_API_USAGE.md](WORKFLOW_API_USAGE.md) - Workflow API Reference
+- [GETTING_STARTED_WORKFLOWS.md](GETTING_STARTED_WORKFLOWS.md) - Workflow Getting Started
+
+### Frontend Documentation
+- [frontend/README.md](frontend/README.md) - Frontend Complete Guide
+- [frontend/QUICKSTART.md](frontend/QUICKSTART.md) - 5-Minute Frontend Setup
+- [FRONTEND_DEPLOYMENT_COMPLETE.md](FRONTEND_DEPLOYMENT_COMPLETE.md) - Deployment Guide
+- [FRONTEND_INTEGRATION_SUMMARY.md](FRONTEND_INTEGRATION_SUMMARY.md) - Integration Summary
+
+### Database Setup
+- [backend/SUPABASE_SETUP_PHASE2_SPRINT2.md](backend/SUPABASE_SETUP_PHASE2_SPRINT2.md) - Database Configuration
+- [backend/init.sql](backend/init.sql) - Sprint 1 Schema
+- [backend/init_sprint2.sql](backend/init_sprint2.sql) - Sprint 2 Schema (Vector DB)
+- [backend/init_phase2_sprint2.sql](backend/init_phase2_sprint2.sql) - Phase 2 Sprint 2 Schema
+- [backend/init_phase2_sprint4.sql](backend/init_phase2_sprint4.sql) - Phase 2 Sprint 4 Schema (Approvals)
+- [backend/init_chat_enhanced.sql](backend/init_chat_enhanced.sql) - Enhanced Chat Schema
+
+### Other Resources
+- [README.md](README.md) - Project Overview
+- [documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md](documents/MOM_Engineering_Automation_Kickoff_Dec02_2025.md) - Meeting Minutes
 
 ## Development Philosophy
 
@@ -662,3 +1126,133 @@ Core principles:
 3. **Modular Design**: Clear separation of concerns
 4. **Zero-Trust Security**: Audit everything
 5. **Performance**: Target <500ms retrieval latency
+6. **Configuration over Code**: Workflows as data, not code
+
+## Common Development Scenarios
+
+### Scenario 1: Adding a New Calculation Engine
+
+1. Create engine file in `backend/app/engines/<discipline>/your_engine.py`
+2. Define Pydantic input/output schemas
+3. Implement calculation function with proper error handling
+4. Register in `backend/app/engines/registry.py`
+5. Add unit tests in `tests/unit/engines/`
+6. Update task type mapping in `backend/app/nodes/calculation.py` if needed
+
+**Example**:
+```python
+# backend/app/engines/structural/beam_designer.py
+from pydantic import BaseModel
+
+class BeamInput(BaseModel):
+    span_length: float
+    load: float
+    # ... more fields
+
+class BeamOutput(BaseModel):
+    beam_depth: float
+    # ... more fields
+
+def design_steel_beam(input_data: BeamInput) -> BeamOutput:
+    # Implementation
+    return BeamOutput(...)
+```
+
+### Scenario 2: Creating a New Workflow via API
+
+Use the [create_workflow.py](create_workflow.py) helper script or make direct API calls:
+
+```bash
+# Interactive workflow creation
+python create_workflow.py
+
+# Or use curl (see WORKFLOW_CREATION_GUIDE.md for examples)
+curl -X POST http://localhost:8000/api/v1/workflows/ -H "Content-Type: application/json" -d @workflow.json
+```
+
+### Scenario 3: Debugging a Workflow Execution
+
+1. Check execution logs: `GET /api/v1/workflows/executions/{execution_id}`
+2. Review step logs: Check `workflow_step_logs` table
+3. Examine risk assessment if HITL triggered: `GET /api/v1/approvals/{request_id}`
+4. Use demo scripts to reproduce: `python demo_phase2_sprint2.py`
+
+### Scenario 4: Modifying the Enhanced Chat Behavior
+
+The chat agent uses a 7-node LangGraph workflow. Key modification points:
+
+- **Intent Detection**: Modify `detect_intent` node in [backend/app/chat/enhanced_agent.py](backend/app/chat/enhanced_agent.py)
+- **Entity Extraction**: Update `extract_entities` node
+- **Decision Logic**: Modify `decide_action` node routing conditions
+- **Tool Execution**: Update `execute_tool` node to add new tools
+
+### Scenario 5: Adjusting Risk Assessment
+
+Risk thresholds can be changed without code deployment:
+
+```python
+from app.schemas.workflow.schema_models import DeliverableSchemaUpdate, RiskConfig
+
+service.update_schema(
+    "foundation_design",
+    DeliverableSchemaUpdate(
+        risk_config=RiskConfig(
+            auto_approve_threshold=0.2,  # Lower = more approvals
+            require_hitl_threshold=0.8   # Lower = stricter
+        )
+    ),
+    updated_by="admin"
+)
+```
+
+### Scenario 6: Frontend Development
+
+When adding a new page:
+
+1. Create page in `frontend/src/pages/YourPage.jsx`
+2. Add route in `frontend/src/App.jsx`
+3. Create API service in `frontend/src/services/` if needed
+4. Update navigation in layout component
+
+**Example**:
+```jsx
+// frontend/src/App.jsx
+import YourPage from './pages/YourPage';
+
+// Add route
+<Route path="/your-page" element={<YourPage />} />
+```
+
+## Best Practices for This Codebase
+
+### Backend
+- Always use type hints and Pydantic models for validation
+- Log all actions to `audit_log` table for security
+- Use `DatabaseConfig.log_audit()` helper for audit logging
+- Never mutate LangGraph state - return new dict with updates
+- Use environment variables for all configuration (never hardcode)
+- Follow the existing error handling patterns (try/except with proper logging)
+
+### Frontend
+- Use the existing API service layer (`src/services/`) for all backend calls
+- Follow the component structure (pages vs. components)
+- Use Tailwind CSS for styling (avoid custom CSS unless necessary)
+- Leverage Zustand for state management if needed
+
+### Workflows
+- Define workflows as database schemas (use Configuration Layer)
+- Use variable substitution (`$input.*`, `$step*.*`) for dynamic values
+- Always provide `input_schema` for validation
+- Set appropriate risk thresholds for your use case
+
+### Testing
+- Write unit tests for all calculation engines
+- Test workflow execution end-to-end using demo scripts
+- Use pytest for backend tests
+- Test API endpoints using the provided test scripts
+
+### Database
+- Always run migrations in order: `init.sql` → `init_sprint2.sql` → `init_phase2_sprint2.sql` → `init_phase2_sprint4.sql` → `init_chat_enhanced.sql`
+- Use JSONB for flexible schema storage
+- Index frequently queried fields
+- Use pgvector for similarity search (rebuild indexes after large ingestions)

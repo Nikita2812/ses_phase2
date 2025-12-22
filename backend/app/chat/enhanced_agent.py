@@ -38,6 +38,7 @@ from app.core.database import DatabaseConfig
 from app.nodes.retrieval import search_knowledge_base
 from app.services.workflow_orchestrator import WorkflowOrchestrator
 from app.engines.registry import engine_registry
+from app.chat.cll_integration import CLLChatIntegration
 
 
 # =============================================================================
@@ -76,6 +77,12 @@ class EnhancedAgentState(TypedDict):
     # Response
     response: Optional[str]
     metadata: Dict[str, Any]
+
+    # CLL Integration (NEW)
+    preferences_extracted: bool
+    preferences_applied: bool
+    preference_modifications: List[Dict[str, Any]]
+    original_response: Optional[str]  # Before preference application
 
 
 # =============================================================================
@@ -157,15 +164,20 @@ Respond in JSON:
 
 RESPONSE_GENERATION_PROMPT = """You are a helpful AI assistant for civil, structural, and architectural engineering.
 
-Generate a natural, conversational response to the user.
-
-Context: {context}
+Generate a natural, conversational response to the user's question.
 
 User's message: "{user_message}"
 
+Context: {context}
+
 {additional_context}
 
-Generate a helpful response. If tool execution results are provided, explain them clearly."""
+IMPORTANT:
+- Answer the user's question directly and comprehensively
+- If knowledge base context is provided, use it to give accurate, detailed answers
+- Do NOT ask for clarification unless critical information is truly missing
+- If tool execution results are provided, explain them clearly
+- Be helpful and informative"""
 
 
 # =============================================================================
@@ -181,11 +193,17 @@ class EnhancedConversationalAgent:
     - Context tracking
     """
 
-    def __init__(self):
-        """Initialize the enhanced agent."""
+    def __init__(self, enable_cll: bool = True):
+        """Initialize the enhanced agent.
+
+        Args:
+            enable_cll: Enable Continuous Learning Loop integration (default: True)
+        """
         self.llm = get_chat_llm()
         self.db = DatabaseConfig()
         self.workflow_orchestrator = WorkflowOrchestrator()
+        self.enable_cll = enable_cll
+        self.cll = CLLChatIntegration() if enable_cll else None
         self.graph = self._build_graph()
 
     # =========================================================================
@@ -197,16 +215,27 @@ class EnhancedConversationalAgent:
         workflow = StateGraph(EnhancedAgentState)
 
         # Add nodes
+        if self.enable_cll:
+            workflow.add_node("extract_preferences", self._extract_preferences_node)
+
         workflow.add_node("detect_intent", self._detect_intent_node)
         workflow.add_node("extract_entities", self._extract_entities_node)
         workflow.add_node("decide_action", self._decide_action_node)
         workflow.add_node("execute_tool", self._execute_tool_node)
         workflow.add_node("retrieve_knowledge", self._retrieve_knowledge_node)
         workflow.add_node("generate_response", self._generate_response_node)
+
+        if self.enable_cll:
+            workflow.add_node("apply_preferences", self._apply_preferences_node)
+
         workflow.add_node("save_to_db", self._save_to_db_node)
 
         # Set entry point
-        workflow.set_entry_point("detect_intent")
+        if self.enable_cll:
+            workflow.set_entry_point("extract_preferences")
+            workflow.add_edge("extract_preferences", "detect_intent")
+        else:
+            workflow.set_entry_point("detect_intent")
 
         # Add edges
         workflow.add_edge("detect_intent", "extract_entities")
@@ -225,7 +254,13 @@ class EnhancedConversationalAgent:
 
         workflow.add_edge("execute_tool", "generate_response")
         workflow.add_edge("retrieve_knowledge", "generate_response")
-        workflow.add_edge("generate_response", "save_to_db")
+
+        if self.enable_cll:
+            workflow.add_edge("generate_response", "apply_preferences")
+            workflow.add_edge("apply_preferences", "save_to_db")
+        else:
+            workflow.add_edge("generate_response", "save_to_db")
+
         workflow.add_edge("save_to_db", END)
 
         return workflow.compile()
@@ -484,6 +519,112 @@ class EnhancedConversationalAgent:
             return {
                 **state,
                 "response": "I apologize, but I encountered an error generating a response. Please try again."
+            }
+
+    def _extract_preferences_node(self, state: EnhancedAgentState) -> EnhancedAgentState:
+        """
+        Extract user preferences from the message (CLL Integration).
+
+        This node runs FIRST in the workflow to capture any preference statements.
+        """
+        if not self.enable_cll or not self.cll:
+            return {
+                **state,
+                "preferences_extracted": False,
+                "preference_modifications": []
+            }
+
+        user_message = state["user_message"]
+        user_id = state["user_id"]
+        session_id = state["session_id"]
+
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            result = loop.run_until_complete(
+                self.cll.process_user_message(
+                    user_id=user_id,
+                    message=user_message,
+                    session_id=session_id,
+                    context=state.get("accumulated_context", {})
+                )
+            )
+
+            loop.close()
+
+            if result["preferences_extracted"]:
+                print(f"[CLL] Extracted {result['preference_count']} preference(s) from user message")
+
+            return {
+                **state,
+                "preferences_extracted": result["preferences_extracted"],
+                "preference_modifications": result.get("extraction_details", [])
+            }
+
+        except Exception as e:
+            print(f"[CLL] Error extracting preferences: {e}")
+            return {
+                **state,
+                "preferences_extracted": False,
+                "preference_modifications": []
+            }
+
+    def _apply_preferences_node(self, state: EnhancedAgentState) -> EnhancedAgentState:
+        """
+        Apply user preferences to the response (CLL Integration).
+
+        This node runs AFTER response generation to modify the response based on
+        learned preferences.
+        """
+        if not self.enable_cll or not self.cll:
+            return state
+
+        response = state.get("response", "")
+        user_id = state["user_id"]
+        session_id = state["session_id"]
+        task_type = state.get("task_type")
+
+        try:
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            result = loop.run_until_complete(
+                self.cll.apply_preferences_to_response(
+                    user_id=user_id,
+                    response=response,
+                    session_id=session_id,
+                    task_type=task_type,
+                    context=state.get("accumulated_context", {})
+                )
+            )
+
+            loop.close()
+
+            modified_response = result["modified_response"]
+            had_changes = result["had_changes"]
+
+            if had_changes:
+                print(
+                    f"[CLL] Applied {len(result['preferences_applied'])} preference(s) "
+                    f"to modify response"
+                )
+
+            return {
+                **state,
+                "response": modified_response,
+                "original_response": result["original_response"],
+                "preferences_applied": True,
+                "preference_modifications": result["modifications_made"]
+            }
+
+        except Exception as e:
+            print(f"[CLL] Error applying preferences: {e}")
+            return {
+                **state,
+                "preferences_applied": False
             }
 
     def _save_to_db_node(self, state: EnhancedAgentState) -> EnhancedAgentState:
