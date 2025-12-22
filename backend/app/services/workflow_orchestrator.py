@@ -130,10 +130,12 @@ class WorkflowOrchestrator:
         # Emit execution started event
         if STREAMING_AVAILABLE:
             try:
+                from app.execution import StreamEventType
                 streaming_manager = get_streaming_manager()
                 streaming_manager.emit(str(execution_id), StreamEvent(
-                    type="execution_started",
+                    event_type=StreamEventType.EXECUTION_STARTED,
                     execution_id=str(execution_id),
+                    timestamp=started_at.isoformat(),
                     data={
                         "deliverable_type": deliverable_type,
                         "total_steps": len(schema.workflow_steps),
@@ -173,9 +175,11 @@ class WorkflowOrchestrator:
                 # Emit step started event
                 if STREAMING_AVAILABLE:
                     try:
+                        from app.execution import StreamEventType
                         streaming_manager.emit(str(execution_id), StreamEvent(
-                            type="step_started",
+                            event_type=StreamEventType.STEP_STARTED,
                             execution_id=str(execution_id),
+                            timestamp=datetime.utcnow().isoformat(),
                             data={
                                 "step_number": step.step_number,
                                 "step_name": step.step_name,
@@ -192,10 +196,12 @@ class WorkflowOrchestrator:
                 # Emit step completed/failed event
                 if STREAMING_AVAILABLE:
                     try:
-                        event_type = "step_completed" if step_result.status == "completed" else "step_failed"
+                        from app.execution import StreamEventType
+                        event_type_enum = StreamEventType.STEP_COMPLETED if step_result.status == "completed" else StreamEventType.STEP_FAILED
                         streaming_manager.emit(str(execution_id), StreamEvent(
-                            type=event_type,
+                            event_type=event_type_enum,
                             execution_id=str(execution_id),
+                            timestamp=datetime.utcnow().isoformat(),
                             data={
                                 "step_number": step.step_number,
                                 "step_name": step.step_name,
@@ -261,9 +267,11 @@ class WorkflowOrchestrator:
             # Emit execution completed event
             if STREAMING_AVAILABLE:
                 try:
+                    from app.execution import StreamEventType
                     streaming_manager.emit(str(execution_id), StreamEvent(
-                        type="execution_completed",
+                        event_type=StreamEventType.EXECUTION_COMPLETED,
                         execution_id=str(execution_id),
+                        timestamp=datetime.utcnow().isoformat(),
                         data={
                             "status": execution_status,
                             "risk_score": risk_score,
@@ -292,9 +300,11 @@ class WorkflowOrchestrator:
             # Emit execution failed event
             if STREAMING_AVAILABLE:
                 try:
+                    from app.execution import StreamEventType
                     streaming_manager.emit(str(execution_id), StreamEvent(
-                        type="execution_failed",
+                        event_type=StreamEventType.EXECUTION_FAILED,
                         execution_id=str(execution_id),
+                        timestamp=datetime.utcnow().isoformat(),
                         data={
                             "error_message": str(e),
                             "progress": 0

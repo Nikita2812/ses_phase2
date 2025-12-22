@@ -133,6 +133,19 @@ def optimize_schedule(initial_design_data: Dict[str, Any]) -> Dict[str, Any]:
         >>> final["design_status"]
         'Optimized'
     """
+    # DEBUG: Print incoming data
+    from pprint import pprint
+    print("\n" + "="*80)
+    print("DEBUG: optimize_schedule() INPUT (RAW)")
+    print("="*80)
+    pprint(initial_design_data)
+    print("="*80 + "\n")
+    
+    # UNWRAP: Handle case where data is wrapped in 'initial_design_data' key
+    if "initial_design_data" in initial_design_data and len(initial_design_data) == 1:
+        initial_design_data = initial_design_data["initial_design_data"]
+        print("DEBUG: Unwrapped initial_design_data layer\n")
+    
     optimization_notes = []
 
     # Extract key data from initial design

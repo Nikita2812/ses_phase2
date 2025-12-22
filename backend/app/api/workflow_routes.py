@@ -273,11 +273,30 @@ async def execute_workflow_endpoint(deliverable_type: str, request: WorkflowExec
         Workflow execution result
     """
     try:
+        # DEBUG: Print incoming request
+        from pprint import pprint
+        print("\n" + "="*80)
+        print(f"DEBUG: EXECUTE WORKFLOW ENDPOINT - {deliverable_type}")
+        print("="*80)
+        print("INPUT DATA:")
+        pprint(request.input_data)
+        print("="*80 + "\n")
+        
         result = execute_workflow(
             deliverable_type=deliverable_type,
             input_data=request.input_data,
             user_id=request.user_id
         )
+
+        # DEBUG: Print workflow result
+        print("\n" + "="*80)
+        print(f"DEBUG: WORKFLOW RESULT - {deliverable_type}")
+        print("="*80)
+        print(f"Execution ID: {result.id}")
+        print(f"Status: {result.execution_status}")
+        print("OUTPUT DATA:")
+        pprint(result.output_data)
+        print("="*80 + "\n")
 
         return WorkflowExecuteResponse(
             execution_id=str(result.id),  # Convert UUID to string

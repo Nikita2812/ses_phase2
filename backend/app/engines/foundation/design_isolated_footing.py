@@ -469,7 +469,17 @@ def design_isolated_footing(input_data: Dict[str, Any]) -> Dict[str, Any]:
         calculation_timestamp=datetime.utcnow().isoformat()
     )
 
-    return initial_design.model_dump()
+    result = initial_design.model_dump()
+    
+    # DEBUG: Print what we're returning
+    from pprint import pprint
+    print("\n" + "="*80)
+    print("DEBUG: design_isolated_footing() OUTPUT")
+    print("="*80)
+    pprint(result)
+    print("="*80 + "\n")
+    
+    return result
 
 
 # ============================================================================

@@ -125,6 +125,53 @@ class StreamingManager:
 
         logger.info(f"📡 Created stream for execution {execution_id}")
 
+    def emit(self, execution_id: str, event: StreamEvent):
+        """
+        Synchronous emit method for backward compatibility
+        
+        Args:
+            execution_id: Execution identifier
+            event: Event to broadcast (with 'type' field)
+        """
+        # Convert 'type' field to 'event_type' if needed
+        if hasattr(event, 'type') and not hasattr(event, 'event_type'):
+            # Create a proper StreamEvent with event_type
+            event = StreamEvent(
+                event_type=StreamEventType(event.type),
+                execution_id=execution_id,
+                timestamp=datetime.utcnow().isoformat(),
+                data=event.data if hasattr(event, 'data') else {}
+            )
+        
+        # Add to history synchronously
+        history = self.event_history[execution_id]
+        history.append(event)
+        
+        # Trim history if too large
+        if len(history) > self.max_history:
+            self.event_history[execution_id] = history[-self.max_history:]
+        
+        self.stats["total_events"] += 1
+        
+        # Add to queue for async iteration (non-blocking)
+        if execution_id in self.event_queues:
+            try:
+                self.event_queues[execution_id].put_nowait(event)
+            except asyncio.QueueFull:
+                logger.warning(f"Event queue full for {execution_id}")
+        
+        # Broadcast to subscribers (synchronous only)
+        subscribers = self.subscribers.get(execution_id, set())
+        for callback in subscribers:
+            try:
+                if not asyncio.iscoroutinefunction(callback):
+                    callback(event)
+                # Skip async callbacks in sync emit
+            except Exception as e:
+                logger.error(f"Subscriber callback failed: {e}")
+        
+        logger.debug(f"📤 Emitted {event.event_type} to {len(subscribers)} subscribers")
+
     async def broadcast_event(self, execution_id: str, event: StreamEvent):
         """
         Broadcast event to all subscribers

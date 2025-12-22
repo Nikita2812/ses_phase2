@@ -84,9 +84,21 @@ class DatabaseConfig:
             print(f"Database connection test failed: {e}")
             return False
 
+    def close_pg_connection(self):
+        """Close the PostgreSQL connection if it exists."""
+        if self._pg_connection is not None and not self._pg_connection.closed:
+            try:
+                self._pg_connection.close()
+                print("PostgreSQL connection closed")
+            except Exception as e:
+                print(f"Error closing PostgreSQL connection: {e}")
+            finally:
+                self._pg_connection = None
+
     def get_pg_connection(self) -> psycopg2.extensions.connection:
         """
         Get or create PostgreSQL connection for raw SQL queries.
+        Implements retry logic for transient connection failures.
 
         Returns:
             psycopg2 connection object
@@ -104,6 +116,7 @@ class DatabaseConfig:
             # Connect using the connection string directly
             # Parse the connection string to extract components
             import socket
+            import time
             from urllib.parse import urlparse, parse_qs, urlencode
 
             # Parse the URL
@@ -139,7 +152,11 @@ class DatabaseConfig:
                 'password': password,
                 'host': host,
                 'port': port,
-                'connect_timeout': 10
+                'connect_timeout': 30,  # Increased from 10 to 30 seconds
+                'keepalives': 1,
+                'keepalives_idle': 30,
+                'keepalives_interval': 10,
+                'keepalives_count': 5
             }
 
             # Add SSL mode if present
@@ -150,8 +167,37 @@ class DatabaseConfig:
             if 'options' in query_params and query_params['options'][0]:
                 conn_params['options'] = query_params['options'][0]
 
-            # Connect with explicit parameters
-            self._pg_connection = psycopg2.connect(**conn_params)
+            # Connect with retry logic for transient failures
+            max_retries = 3
+            retry_delay = 2  # seconds
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    print(f"Attempting database connection (attempt {attempt + 1}/{max_retries})...")
+                    self._pg_connection = psycopg2.connect(**conn_params)
+                    print(f"✓ Database connection established successfully")
+                    break
+                except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
+                    last_error = e
+                    error_msg = str(e)
+                    
+                    # Check if it's a timeout or connection issue
+                    if 'timeout' in error_msg.lower() or 'connection' in error_msg.lower():
+                        if attempt < max_retries - 1:
+                            print(f"⚠ Connection attempt {attempt + 1} failed: {error_msg}")
+                            print(f"  Retrying in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
+                            retry_delay *= 1.5  # Exponential backoff
+                        else:
+                            print(f"✗ All connection attempts failed")
+                            raise ConnectionError(
+                                f"Failed to connect to database after {max_retries} attempts. "
+                                f"Last error: {error_msg}"
+                            ) from e
+                    else:
+                        # Non-transient error, don't retry
+                        raise
 
         return self._pg_connection
 
@@ -176,25 +222,45 @@ class DatabaseConfig:
             >>> db.execute_query("SELECT * FROM users WHERE id = %s", (user_id,))
             [(1, 'user@example.com', ...)]
         """
-        conn = self.get_pg_connection()
-        cursor = conn.cursor()
+        max_retries = 2
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                conn = self.get_pg_connection()
+                cursor = conn.cursor()
 
-        try:
-            cursor.execute(query, params)
+                try:
+                    cursor.execute(query, params)
 
-            if fetch:
-                results = cursor.fetchall()
-                conn.commit()
-                return results
-            else:
-                conn.commit()
-                return []
+                    if fetch:
+                        results = cursor.fetchall()
+                        conn.commit()
+                        return results
+                    else:
+                        conn.commit()
+                        return []
 
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cursor.close()
+                except Exception as e:
+                    conn.rollback()
+                    raise e
+                finally:
+                    cursor.close()
+                    
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                last_error = e
+                error_msg = str(e)
+                
+                # Close stale connection
+                self.close_pg_connection()
+                
+                # Retry on connection errors
+                if attempt < max_retries - 1 and ('timeout' in error_msg.lower() or 'connection' in error_msg.lower()):
+                    print(f"⚠ Query execution failed (attempt {attempt + 1}), retrying: {error_msg}")
+                    import time
+                    time.sleep(1)
+                else:
+                    raise ConnectionError(f"Database query failed: {error_msg}") from e
 
     def execute_query_dict(
         self,
@@ -215,20 +281,40 @@ class DatabaseConfig:
             >>> db.execute_query_dict("SELECT * FROM users WHERE id = %s", (user_id,))
             [{'id': 1, 'email': 'user@example.com', ...}]
         """
-        conn = self.get_pg_connection()
-        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        max_retries = 2
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                conn = self.get_pg_connection()
+                cursor = conn.cursor(cursor_factory=RealDictCursor)
 
-        try:
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-            conn.commit()
-            return [dict(row) for row in results]
+                try:
+                    cursor.execute(query, params)
+                    results = cursor.fetchall()
+                    conn.commit()
+                    return [dict(row) for row in results]
 
-        except Exception as e:
-            conn.rollback()
-            raise e
-        finally:
-            cursor.close()
+                except Exception as e:
+                    conn.rollback()
+                    raise e
+                finally:
+                    cursor.close()
+                    
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                last_error = e
+                error_msg = str(e)
+                
+                # Close stale connection
+                self.close_pg_connection()
+                
+                # Retry on connection errors
+                if attempt < max_retries - 1 and ('timeout' in error_msg.lower() or 'connection' in error_msg.lower()):
+                    print(f"⚠ Query execution failed (attempt {attempt + 1}), retrying: {error_msg}")
+                    import time
+                    time.sleep(1)
+                else:
+                    raise ConnectionError(f"Database query failed: {error_msg}") from e
 
     def log_audit(
         self,
