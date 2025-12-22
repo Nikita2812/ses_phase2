@@ -13,6 +13,7 @@ import {
   FiX,
   FiDatabase,
   FiAlertTriangle,
+  FiDollarSign,
 } from 'react-icons/fi';
 
 const navigation = [
@@ -25,6 +26,7 @@ const navigation = [
   { name: 'Risk Rules', href: '/risk-rules', icon: FiShield },
   { name: 'Knowledge Graph', href: '/knowledge-graph', icon: FiDatabase },
   { name: 'Constructability', href: '/constructability', icon: FiAlertTriangle },
+  { name: 'What-If Costs', href: '/scenarios', icon: FiDollarSign },
   { name: 'Settings', href: '/settings', icon: FiSettings },
 ];
 
@@ -106,7 +108,7 @@ export default function Layout() {
           <div className="p-4 border-t">
             <div className="text-xs text-gray-500">
               <p>Version 1.0.0</p>
-              <p>Phase 4 Sprint 2 Complete</p>
+              <p>Phase 4 Sprint 3 Complete</p>
             </div>
           </div>
         </div>
