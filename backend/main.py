@@ -24,6 +24,11 @@ from app.api.workflow_routes import router as workflow_router
 from app.api.approval_routes import approval_router
 from app.api.learning_routes import learning_router
 from app.api.risk_rules_routes import risk_rules_router  # Phase 3 Sprint 2: Dynamic Risk Rules
+from app.api.versioning_routes import (  # Phase 3 Sprint 4: A/B Testing & Versioning
+    version_router,
+    experiment_router,
+    performance_router
+)
 
 
 # =============================================================================
@@ -84,6 +89,9 @@ app.include_router(workflow_router)  # Phase 2 Sprint 2: Workflow Management
 app.include_router(approval_router)  # Phase 2 Sprint 4: HITL Approval Workflow
 app.include_router(learning_router)  # Phase 3: Continuous Learning Loop (CLL)
 app.include_router(risk_rules_router)  # Phase 3 Sprint 2: Dynamic Risk Rules Management
+app.include_router(version_router)  # Phase 3 Sprint 4: Schema Version Control
+app.include_router(experiment_router)  # Phase 3 Sprint 4: A/B Testing Experiments
+app.include_router(performance_router)  # Phase 3 Sprint 4: Performance Dashboard
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")

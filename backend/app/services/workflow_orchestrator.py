@@ -70,7 +70,8 @@ class WorkflowOrchestrator:
         deliverable_type: str,
         input_data: Dict[str, Any],
         user_id: str,
-        project_id: Optional[UUID] = None
+        project_id: Optional[UUID] = None,
+        experiment_id: Optional[UUID] = None
     ) -> WorkflowExecution:
         """
         Execute a workflow based on its schema.
@@ -80,6 +81,7 @@ class WorkflowOrchestrator:
             input_data: User-provided input data
             user_id: User executing the workflow
             project_id: Optional project association
+            experiment_id: Optional experiment context for A/B testing
 
         Returns:
             WorkflowExecution record with results
@@ -113,6 +115,36 @@ class WorkflowOrchestrator:
         # Validate input data against schema
         self._validate_input(input_data, schema.input_schema)
 
+        # Select variant for A/B testing (if applicable)
+        variant_id = None
+        variant_key = None
+        effective_schema = schema
+
+        try:
+            from app.services.versioning.version_control import VersionControlService
+            version_service = VersionControlService()
+            variant_selection = version_service.select_variant_for_execution(
+                schema.id,
+                experiment_id
+            )
+
+            if not variant_selection.use_base_version:
+                variant_id = variant_selection.variant_id
+                variant_key = variant_selection.variant_key
+
+                # Apply variant overrides if present
+                variant = version_service.get_variant(variant_id)
+                if variant and variant.risk_config_override:
+                    # Override risk config for this execution
+                    from app.schemas.workflow.schema_models import RiskConfig
+                    schema.risk_config = RiskConfig(**variant.risk_config_override)
+        except ImportError:
+            # Version control not available, use base version
+            pass
+        except Exception as e:
+            # Log but don't fail execution
+            print(f"Warning: Variant selection failed: {e}")
+
         # Create execution record
         execution_id = uuid4()
         started_at = datetime.utcnow()
@@ -124,7 +156,11 @@ class WorkflowOrchestrator:
             input_data=input_data,
             user_id=user_id,
             project_id=project_id,
-            started_at=started_at
+            started_at=started_at,
+            schema_version=schema.version,
+            variant_id=variant_id,
+            variant_key=variant_key,
+            experiment_id=experiment_id
         )
 
         # Emit execution started event
@@ -720,15 +756,20 @@ class WorkflowOrchestrator:
         input_data: Dict[str, Any],
         user_id: str,
         project_id: Optional[UUID],
-        started_at: datetime
+        started_at: datetime,
+        schema_version: int = 1,
+        variant_id: Optional[UUID] = None,
+        variant_key: Optional[str] = None,
+        experiment_id: Optional[UUID] = None
     ) -> WorkflowExecution:
-        """Create initial execution record in database."""
+        """Create initial execution record in database with version tracking."""
         query = """
             INSERT INTO csa.workflow_executions (
                 id, schema_id, deliverable_type, execution_status,
-                input_data, user_id, project_id, started_at, created_at
+                input_data, user_id, project_id, started_at, created_at,
+                schema_version, variant_id, variant_key, experiment_id
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *;
         """
 
@@ -743,7 +784,11 @@ class WorkflowOrchestrator:
                 user_id,
                 project_id,
                 started_at,
-                started_at
+                started_at,
+                schema_version,
+                variant_id,
+                variant_key,
+                experiment_id
             )
         )
 
@@ -868,7 +913,8 @@ def execute_workflow(
     deliverable_type: str,
     input_data: Dict[str, Any],
     user_id: str,
-    project_id: Optional[UUID] = None
+    project_id: Optional[UUID] = None,
+    experiment_id: Optional[UUID] = None
 ) -> WorkflowExecution:
     """
     Convenience function to execute a workflow.
@@ -878,9 +924,12 @@ def execute_workflow(
         input_data: User input
         user_id: User ID
         project_id: Optional project ID
+        experiment_id: Optional experiment ID for A/B testing
 
     Returns:
         WorkflowExecution result
     """
     orchestrator = WorkflowOrchestrator()
-    return orchestrator.execute_workflow(deliverable_type, input_data, user_id, project_id)
+    return orchestrator.execute_workflow(
+        deliverable_type, input_data, user_id, project_id, experiment_id
+    )

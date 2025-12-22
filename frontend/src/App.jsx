@@ -9,6 +9,8 @@ import WorkflowExecutionPage from './pages/WorkflowExecutionPage'
 import ExecutionsPage from './pages/ExecutionsPage'
 import ApprovalsPage from './pages/ApprovalsPage'
 import RiskRulesPage from './pages/RiskRulesPage'
+import PerformanceDashboard from './pages/PerformanceDashboard'
+import ExperimentsPage from './pages/ExperimentsPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -30,6 +32,8 @@ function App() {
           <Route path="executions/:executionId" element={<ExecutionsPage />} />
           <Route path="approvals" element={<ApprovalsPage />} />
           <Route path="risk-rules" element={<RiskRulesPage />} />
+          <Route path="performance" element={<PerformanceDashboard />} />
+          <Route path="experiments" element={<ExperimentsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

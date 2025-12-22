@@ -1,4 +1,4 @@
-import { FiMessageSquare, FiTool, FiLayers, FiActivity, FiCheckCircle, FiClock, FiGrid, FiHome } from 'react-icons/fi';
+import { FiMessageSquare, FiTool, FiLayers, FiActivity, FiCheckCircle, FiClock, FiGrid, FiHome, FiTrendingUp, FiGitBranch } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
@@ -35,6 +35,22 @@ export default function Dashboard() {
       color: 'bg-orange-500',
       stats: 'Phase 2 Sprint 4',
     },
+    {
+      name: 'Performance Dashboard',
+      description: 'Monitor schema performance, metrics, and version comparisons',
+      icon: FiTrendingUp,
+      href: '/performance',
+      color: 'bg-indigo-500',
+      stats: 'Phase 3 Sprint 4',
+    },
+    {
+      name: 'A/B Testing',
+      description: 'Create experiments and compare schema variants',
+      icon: FiGitBranch,
+      href: '/experiments',
+      color: 'bg-pink-500',
+      stats: 'Phase 3 Sprint 4',
+    },
   ];
 
   const engineStats = [
@@ -47,6 +63,7 @@ export default function Dashboard() {
     { name: 'Engineering Tools', value: '8', icon: FiTool, color: 'text-green-600' },
     { name: 'Implementation Phase', value: 'Phase 3', icon: FiClock, color: 'text-blue-600' },
     { name: 'Total Functions', value: '16', icon: FiGrid, color: 'text-purple-600' },
+    { name: 'A/B Testing', value: 'Active', icon: FiGitBranch, color: 'text-pink-600' },
   ];
 
   return (
@@ -60,7 +77,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-4">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -82,7 +99,7 @@ export default function Dashboard() {
       {/* Features */}
       <div>
         <h2 className="mb-4 text-xl font-semibold text-gray-900">Available Features</h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
@@ -166,11 +183,11 @@ export default function Dashboard() {
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Frontend Version</dt>
-            <dd className="mt-1 text-sm text-gray-900">1.0.0 (Phase 3 Sprint 3)</dd>
+            <dd className="mt-1 text-sm text-gray-900">1.1.0 (Phase 3 Sprint 4)</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Implementation</dt>
-            <dd className="mt-1 text-sm text-gray-900">Phase 1-3 Complete</dd>
+            <dd className="mt-1 text-sm text-gray-900">Phase 3 Complete (A/B Testing)</dd>
           </div>
         </dl>
       </div>
