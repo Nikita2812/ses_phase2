@@ -462,6 +462,84 @@ def register_all_engines():
         output_schema=None
     )
 
+    # ========================================================================
+    # CONSTRUCTABILITY AGENT (Phase 4 Sprint 2)
+    # ========================================================================
+    from app.engines.constructability.rebar_congestion import (
+        analyze_rebar_congestion,
+        RebarCongestionInput,
+        RebarCongestionResult,
+    )
+    from app.engines.constructability.formwork_complexity import (
+        analyze_formwork_complexity,
+        FormworkComplexityInput,
+        FormworkComplexityResult,
+    )
+    from app.engines.constructability.constructability_analyzer import (
+        analyze_constructability,
+        generate_red_flag_report,
+        generate_constructability_plan,
+        ConstructabilityAnalysisInput,
+        ConstructabilityAnalysisResult,
+        RedFlagReport,
+        ConstructabilityPlan,
+    )
+
+    # Rebar congestion analysis
+    engine_registry.register_tool(
+        tool_name="structural_constructability_analyzer_v1",
+        function_name="analyze_rebar_congestion",
+        function=analyze_rebar_congestion,
+        description="Analyze rebar congestion in structural members. "
+                    "Checks reinforcement ratio and clear spacing per IS 456:2000.",
+        input_schema=RebarCongestionInput,
+        output_schema=RebarCongestionResult
+    )
+
+    # Formwork complexity analysis
+    engine_registry.register_tool(
+        tool_name="structural_constructability_analyzer_v1",
+        function_name="analyze_formwork_complexity",
+        function=analyze_formwork_complexity,
+        description="Analyze formwork complexity for structural members. "
+                    "Evaluates dimension standardization and custom requirements.",
+        input_schema=FormworkComplexityInput,
+        output_schema=FormworkComplexityResult
+    )
+
+    # Comprehensive constructability analysis
+    engine_registry.register_tool(
+        tool_name="structural_constructability_analyzer_v1",
+        function_name="analyze_constructability",
+        function=analyze_constructability,
+        description="Comprehensive constructability analysis combining rebar congestion, "
+                    "formwork complexity, access constraints, and sequencing evaluation.",
+        input_schema=ConstructabilityAnalysisInput,
+        output_schema=ConstructabilityAnalysisResult
+    )
+
+    # Red Flag Report generation
+    engine_registry.register_tool(
+        tool_name="structural_constructability_analyzer_v1",
+        function_name="generate_red_flag_report",
+        function=generate_red_flag_report,
+        description="Generate Red Flag Report from constructability analysis results. "
+                    "Executive summary of critical issues requiring attention.",
+        input_schema=None,  # Takes analysis result dict
+        output_schema=RedFlagReport
+    )
+
+    # Constructability plan generation
+    engine_registry.register_tool(
+        tool_name="structural_constructability_analyzer_v1",
+        function_name="generate_constructability_plan",
+        function=generate_constructability_plan,
+        description="Generate constructability mitigation plan with strategies. "
+                    "Creates actionable steps to address identified issues.",
+        input_schema=None,  # Takes analysis result dict
+        output_schema=ConstructabilityPlan
+    )
+
     # Future registrations will go here:
     # - mep_hvac_designer_v1
     # - mep_electrical_designer_v1

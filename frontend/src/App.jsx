@@ -11,6 +11,8 @@ import ApprovalsPage from './pages/ApprovalsPage'
 import RiskRulesPage from './pages/RiskRulesPage'
 import PerformanceDashboard from './pages/PerformanceDashboard'
 import ExperimentsPage from './pages/ExperimentsPage'
+import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
+import ConstructabilityPage from './pages/ConstructabilityPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -34,6 +36,8 @@ function App() {
           <Route path="risk-rules" element={<RiskRulesPage />} />
           <Route path="performance" element={<PerformanceDashboard />} />
           <Route path="experiments" element={<ExperimentsPage />} />
+          <Route path="knowledge-graph" element={<KnowledgeGraphPage />} />
+          <Route path="constructability" element={<ConstructabilityPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

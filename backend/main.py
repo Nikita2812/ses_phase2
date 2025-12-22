@@ -29,6 +29,8 @@ from app.api.versioning_routes import (  # Phase 3 Sprint 4: A/B Testing & Versi
     experiment_router,
     performance_router
 )
+from app.api.skg_routes import router as skg_router  # Phase 4 Sprint 1: Strategic Knowledge Graph
+from app.api.constructability_routes import router as constructability_router  # Phase 4 Sprint 2: Constructability Agent
 
 
 # =============================================================================
@@ -92,6 +94,8 @@ app.include_router(risk_rules_router)  # Phase 3 Sprint 2: Dynamic Risk Rules Ma
 app.include_router(version_router)  # Phase 3 Sprint 4: Schema Version Control
 app.include_router(experiment_router)  # Phase 3 Sprint 4: A/B Testing Experiments
 app.include_router(performance_router)  # Phase 3 Sprint 4: Performance Dashboard
+app.include_router(skg_router)  # Phase 4 Sprint 1: Strategic Knowledge Graph
+app.include_router(constructability_router)  # Phase 4 Sprint 2: Constructability Agent
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")
