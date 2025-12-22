@@ -1,4 +1,4 @@
-import { FiMessageSquare, FiTool, FiLayers, FiActivity, FiCheckCircle, FiClock } from 'react-icons/fi';
+import { FiMessageSquare, FiTool, FiLayers, FiActivity, FiCheckCircle, FiClock, FiGrid, FiHome } from 'react-icons/fi';
 import { Link } from 'react-router-dom';
 
 export default function Dashboard() {
@@ -21,11 +21,11 @@ export default function Dashboard() {
     },
     {
       name: 'Workflow Manager',
-      description: 'Create and manage workflows without code',
+      description: 'Create and manage workflows without code - 8 engineering tools available',
       icon: FiLayers,
       href: '/workflows',
       color: 'bg-purple-500',
-      stats: 'Phase 2 Sprint 2',
+      stats: 'Phase 3 Sprint 3',
     },
     {
       name: 'Execution Monitor',
@@ -33,14 +33,20 @@ export default function Dashboard() {
       icon: FiActivity,
       href: '/executions',
       color: 'bg-orange-500',
-      stats: 'Phase 2 Sprint 2',
+      stats: 'Phase 2 Sprint 4',
     },
   ];
 
+  const engineStats = [
+    { discipline: 'Civil', count: 3, description: 'Foundations, Retaining Walls, Combined Footings' },
+    { discipline: 'Structural', count: 4, description: 'Beams, Columns, Slabs, Base Plates' },
+    { discipline: 'Architectural', count: 1, description: 'Room Data Sheets' },
+  ];
+
   const stats = [
-    { name: 'Total Features', value: '4', icon: FiCheckCircle, color: 'text-green-600' },
-    { name: 'Implementation Phase', value: 'Phase 2', icon: FiClock, color: 'text-blue-600' },
-    { name: 'Status', value: 'Complete', icon: FiCheckCircle, color: 'text-green-600' },
+    { name: 'Engineering Tools', value: '8', icon: FiTool, color: 'text-green-600' },
+    { name: 'Implementation Phase', value: 'Phase 3', icon: FiClock, color: 'text-blue-600' },
+    { name: 'Total Functions', value: '16', icon: FiGrid, color: 'text-purple-600' },
   ];
 
   return (
@@ -126,6 +132,26 @@ export default function Dashboard() {
         </ul>
       </div>
 
+      {/* Engineering Engines Summary */}
+      <div className="card bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
+        <h3 className="text-lg font-semibold text-indigo-900">Available Engineering Engines</h3>
+        <p className="text-sm text-indigo-700 mt-1">Phase 3 Sprint 3 - Rapid Expansion</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          {engineStats.map((engine) => (
+            <div key={engine.discipline} className="bg-white rounded-lg p-4 border border-indigo-200">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-gray-900">{engine.discipline}</span>
+                <span className="text-2xl font-bold text-indigo-600">{engine.count}</span>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">{engine.description}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-indigo-600 mt-3">
+          All engines follow Indian design codes: IS 456:2000 (RCC), IS 800:2007 (Steel), IS 14458 (Retaining Walls), NBC 2016 (Architectural)
+        </p>
+      </div>
+
       {/* System Info */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900">System Information</h3>
@@ -136,15 +162,15 @@ export default function Dashboard() {
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Database</dt>
-            <dd className="mt-1 text-sm text-gray-900">Supabase PostgreSQL</dd>
+            <dd className="mt-1 text-sm text-gray-900">Supabase PostgreSQL + pgvector</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Frontend Version</dt>
-            <dd className="mt-1 text-sm text-gray-900">1.0.0</dd>
+            <dd className="mt-1 text-sm text-gray-900">1.0.0 (Phase 3 Sprint 3)</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Implementation</dt>
-            <dd className="mt-1 text-sm text-gray-900">Phase 1 + Phase 2 Complete</dd>
+            <dd className="mt-1 text-sm text-gray-900">Phase 1-3 Complete</dd>
           </div>
         </dl>
       </div>

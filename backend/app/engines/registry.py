@@ -225,7 +225,9 @@ def register_all_engines():
     This function is called at application startup to populate the registry.
     As new engines are added in future sprints, they should be registered here.
     """
-    # Import foundation design functions
+    # ========================================================================
+    # CIVIL FOUNDATION DESIGN (Phase 2 Sprint 1)
+    # ========================================================================
     from app.engines.foundation.design_isolated_footing import (
         design_isolated_footing,
         FoundationInput,
@@ -257,9 +259,212 @@ def register_all_engines():
         output_schema=FinalDesignData
     )
 
+    # ========================================================================
+    # STRUCTURAL BEAM DESIGN (Phase 3 Sprint 3)
+    # ========================================================================
+    from app.engines.structural.beam_designer import (
+        analyze_beam,
+        design_beam_reinforcement,
+        BeamInput,
+        BeamAnalysisResult,
+        BeamDesignOutput
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_beam_designer_v1",
+        function_name="analyze_beam",
+        function=analyze_beam,
+        description="Analyze RCC beam for bending moments and shear forces. "
+                    "Step 1 of beam design following IS 456:2000.",
+        input_schema=BeamInput,
+        output_schema=None  # Returns analysis dict
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_beam_designer_v1",
+        function_name="design_beam_reinforcement",
+        function=design_beam_reinforcement,
+        description="Design flexural and shear reinforcement for RCC beam. "
+                    "Step 2 of beam design following IS 456:2000.",
+        input_schema=None,  # Takes analysis dict
+        output_schema=BeamDesignOutput
+    )
+
+    # ========================================================================
+    # STRUCTURAL STEEL COLUMN DESIGN (Phase 3 Sprint 3)
+    # ========================================================================
+    from app.engines.structural.steel_column_designer import (
+        check_column_capacity,
+        design_column_connection,
+        SteelColumnInput,
+        SteelColumnOutput
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_steel_column_designer_v1",
+        function_name="check_column_capacity",
+        function=check_column_capacity,
+        description="Check steel column capacity for axial loads. "
+                    "Includes section selection, slenderness, and buckling checks per IS 800:2007.",
+        input_schema=SteelColumnInput,
+        output_schema=None  # Returns capacity dict
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_steel_column_designer_v1",
+        function_name="design_column_connection",
+        function=design_column_connection,
+        description="Design column base plate and connections. "
+                    "Includes anchor bolts, welds, and material quantities.",
+        input_schema=None,  # Takes capacity dict
+        output_schema=SteelColumnOutput
+    )
+
+    # ========================================================================
+    # STRUCTURAL SLAB DESIGN (Phase 3 Sprint 3)
+    # ========================================================================
+    from app.engines.structural.slab_designer import (
+        analyze_slab,
+        design_slab_reinforcement,
+        SlabInput,
+        SlabDesignOutput
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_slab_designer_v1",
+        function_name="analyze_slab",
+        function=analyze_slab,
+        description="Analyze RCC slab (one-way or two-way) for bending moments. "
+                    "Step 1 of slab design following IS 456:2000.",
+        input_schema=SlabInput,
+        output_schema=None  # Returns analysis dict
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_slab_designer_v1",
+        function_name="design_slab_reinforcement",
+        function=design_slab_reinforcement,
+        description="Design reinforcement for RCC slab including deflection check. "
+                    "Step 2 of slab design following IS 456:2000.",
+        input_schema=None,  # Takes analysis dict
+        output_schema=SlabDesignOutput
+    )
+
+    # ========================================================================
+    # CIVIL COMBINED FOOTING DESIGN (Phase 3 Sprint 3 - Extended)
+    # ========================================================================
+    from app.engines.civil.combined_footing_designer import (
+        analyze_combined_footing,
+        design_combined_footing_reinforcement,
+    )
+
+    engine_registry.register_tool(
+        tool_name="civil_combined_footing_designer_v1",
+        function_name="analyze_combined_footing",
+        function=analyze_combined_footing,
+        description="Analyze combined footing for multiple columns. "
+                    "Calculates dimensions, load distribution, and stability per IS 456:2000.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    engine_registry.register_tool(
+        tool_name="civil_combined_footing_designer_v1",
+        function_name="design_combined_footing_reinforcement",
+        function=design_combined_footing_reinforcement,
+        description="Design reinforcement for combined footing including punching shear check. "
+                    "Step 2 of combined footing design following IS 456:2000.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    # ========================================================================
+    # CIVIL RETAINING WALL DESIGN (Phase 3 Sprint 3 - Extended)
+    # ========================================================================
+    from app.engines.civil.retaining_wall_designer import (
+        analyze_retaining_wall,
+        design_retaining_wall_reinforcement,
+    )
+
+    engine_registry.register_tool(
+        tool_name="civil_retaining_wall_designer_v1",
+        function_name="analyze_retaining_wall",
+        function=analyze_retaining_wall,
+        description="Analyze cantilever retaining wall for stability. "
+                    "Checks overturning, sliding, and bearing per IS 14458.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    engine_registry.register_tool(
+        tool_name="civil_retaining_wall_designer_v1",
+        function_name="design_retaining_wall_reinforcement",
+        function=design_retaining_wall_reinforcement,
+        description="Design reinforcement for retaining wall stem and base. "
+                    "Step 2 of retaining wall design following IS 456:2000.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    # ========================================================================
+    # STRUCTURAL BASE PLATE & ANCHOR BOLT DESIGN (Phase 3 Sprint 3 - Extended)
+    # ========================================================================
+    from app.engines.structural.base_plate_designer import (
+        analyze_base_plate,
+        design_anchor_bolts,
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_base_plate_designer_v1",
+        function_name="analyze_base_plate",
+        function=analyze_base_plate,
+        description="Analyze steel column base plate requirements. "
+                    "Calculates plate dimensions and bearing check per IS 800:2007.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    engine_registry.register_tool(
+        tool_name="structural_base_plate_designer_v1",
+        function_name="design_anchor_bolts",
+        function=design_anchor_bolts,
+        description="Design anchor bolts and connection details for base plate. "
+                    "Includes embedment, weld design, and layout per IS 800:2007.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    # ========================================================================
+    # ARCHITECTURAL ROOM DATA SHEET GENERATOR (Phase 3 Sprint 3 - Extended)
+    # ========================================================================
+    from app.engines.architectural.room_data_sheet_generator import (
+        analyze_room_requirements,
+        generate_room_data_sheet,
+    )
+
+    engine_registry.register_tool(
+        tool_name="architectural_rds_generator_v1",
+        function_name="analyze_room_requirements",
+        function=analyze_room_requirements,
+        description="Analyze room requirements based on type and dimensions. "
+                    "Step 1 of Room Data Sheet generation following NBC 2016.",
+        input_schema=None,
+        output_schema=None
+    )
+
+    engine_registry.register_tool(
+        tool_name="architectural_rds_generator_v1",
+        function_name="generate_room_data_sheet",
+        function=generate_room_data_sheet,
+        description="Generate complete Room Data Sheet with finishes, MEP, and FF&E. "
+                    "Step 2 of RDS generation following standard documentation practices.",
+        input_schema=None,
+        output_schema=None
+    )
+
     # Future registrations will go here:
-    # - structural_steel_designer_v1
-    # - architectural_layout_generator_v1
+    # - mep_hvac_designer_v1
+    # - mep_electrical_designer_v1
     # - etc.
 
 

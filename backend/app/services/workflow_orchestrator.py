@@ -442,6 +442,13 @@ class WorkflowOrchestrator:
 
         Raises:
             ValueError: If variable not found
+
+        Supported Formats:
+            - $input.field_name → User input field
+            - $input → Entire input object
+            - $step1.output_var → Output variable from step 1
+            - $step1.output_var.nested.field → Nested field access
+            - $context.key → Context variable
         """
         if not isinstance(variable_ref, str):
             # Not a variable reference, return as-is
@@ -459,30 +466,48 @@ class WorkflowOrchestrator:
 
         if source == "input":
             data = execution_context.get("input", {})
+            # If path is empty, return entire input
+            if not path:
+                return data
         elif source == "context":
             data = execution_context.get("context", {})
+            if not path:
+                return data
         elif source.startswith("step"):
             # Extract step output variable name
-            # Format could be: $step1 or $stepN
-            # The output variable name is in the path
+            # Format: $step1.output_var or $stepN.output_var.nested.field
             if not path:
-                raise ValueError(f"Invalid step reference: {variable_ref}")
+                raise ValueError(f"Invalid step reference: {variable_ref}. Must specify output variable name.")
             var_name = path[0]
             data = execution_context.get("steps", {}).get(var_name)
+            if data is None:
+                # Try to get the entire steps dict for debugging
+                available_vars = list(execution_context.get("steps", {}).keys())
+                raise ValueError(
+                    f"Step output variable '{var_name}' not found. "
+                    f"Available variables: {available_vars}"
+                )
             path = path[1:]  # Remove variable name from path
         else:
-            raise ValueError(f"Unknown variable source: {source}")
+            raise ValueError(f"Unknown variable source: '{source}' in {variable_ref}")
 
-        # Traverse path
+        # Traverse path for nested access
         for key in path:
             if isinstance(data, dict):
+                if key not in data:
+                    raise ValueError(f"Key '{key}' not found in path for {variable_ref}")
                 data = data.get(key)
+            elif isinstance(data, list) and key.isdigit():
+                # Support array indexing like $step1.output_var.0
+                idx = int(key)
+                if idx < len(data):
+                    data = data[idx]
+                else:
+                    raise ValueError(f"Index {idx} out of range in {variable_ref}")
             else:
-                raise ValueError(f"Cannot access key '{key}' in {variable_ref}")
+                raise ValueError(f"Cannot access key '{key}' in {variable_ref} - data is not a dict")
 
-        if data is None:
-            raise ValueError(f"Variable not found: {variable_ref}")
-
+        # Allow None values to pass through (field exists but is null)
         return data
 
     # ========================================================================

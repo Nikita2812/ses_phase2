@@ -19,12 +19,15 @@ const TEMPLATES = {
     description: 'Start from scratch',
     data: null
   },
+  // ===========================================================================
+  // CIVIL TEMPLATES
+  // ===========================================================================
   foundation_basic: {
-    name: 'Basic Foundation Design',
-    description: 'Single-step foundation calculation',
+    name: 'Isolated Foundation Design',
+    description: 'Single-step isolated footing per IS 456',
     data: {
       deliverable_type: 'foundation_basic',
-      display_name: 'Basic Foundation Design',
+      display_name: 'Isolated Foundation Design',
       discipline: 'civil',
       workflow_steps: [
         {
@@ -100,7 +103,7 @@ const TEMPLATES = {
   },
   foundation_optimized: {
     name: 'Optimized Foundation Design',
-    description: 'Multi-step with optimization',
+    description: 'Multi-step with schedule optimization',
     data: {
       deliverable_type: 'foundation_optimized',
       display_name: 'Optimized Foundation Design',
@@ -164,24 +167,518 @@ const TEMPLATES = {
       status: 'draft',
       tags: ['foundation', 'optimized', 'civil']
     }
+  },
+  retaining_wall: {
+    name: 'Retaining Wall Design',
+    description: 'Cantilever retaining wall per IS 14458',
+    data: {
+      deliverable_type: 'retaining_wall_design',
+      display_name: 'Cantilever Retaining Wall Design',
+      discipline: 'civil',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'analyze_wall',
+          description: 'Analyze wall stability (overturning, sliding, bearing)',
+          persona: 'Designer',
+          function_to_call: 'civil_retaining_wall_designer_v1.analyze_retaining_wall',
+          input_mapping: {
+            wall_height: '$input.wall_height',
+            surcharge_load: '$input.surcharge_load',
+            soil_unit_weight: '$input.soil_unit_weight',
+            angle_of_internal_friction: '$input.angle_of_internal_friction',
+            safe_bearing_capacity: '$input.safe_bearing_capacity',
+            backfill_slope: '$input.backfill_slope',
+            concrete_grade: '$input.concrete_grade',
+            steel_grade: '$input.steel_grade',
+            cover: '$input.cover',
+            coefficient_of_friction: '$input.coefficient_of_friction'
+          },
+          output_variable: 'wall_analysis',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'design_reinforcement',
+          description: 'Design stem and base reinforcement',
+          persona: 'Engineer',
+          function_to_call: 'civil_retaining_wall_designer_v1.design_retaining_wall_reinforcement',
+          input_mapping: {
+            analysis_result: '$step1'
+          },
+          output_variable: 'wall_design',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['wall_height', 'soil_unit_weight', 'angle_of_internal_friction', 'safe_bearing_capacity'],
+        properties: {
+          wall_height: { type: 'number', minimum: 1.5, maximum: 8.0, description: 'Wall height in meters' },
+          surcharge_load: { type: 'number', minimum: 0, default: 10.0, description: 'Surcharge load in kN/m²' },
+          soil_unit_weight: { type: 'number', minimum: 14, maximum: 22, default: 18.0, description: 'Soil unit weight in kN/m³' },
+          angle_of_internal_friction: { type: 'number', minimum: 20, maximum: 45, default: 30.0, description: 'Angle of internal friction (degrees)' },
+          safe_bearing_capacity: { type: 'number', minimum: 100, maximum: 500, description: 'Safe bearing capacity in kPa' },
+          backfill_slope: { type: 'number', minimum: 0, maximum: 30, default: 0.0, description: 'Backfill slope angle (degrees)' },
+          concrete_grade: { type: 'string', enum: ['M20', 'M25', 'M30', 'M35'], default: 'M25' },
+          steel_grade: { type: 'string', enum: ['Fe415', 'Fe500'], default: 'Fe415' },
+          cover: { type: 'number', minimum: 40, maximum: 75, default: 50.0, description: 'Clear cover in mm' },
+          coefficient_of_friction: { type: 'number', minimum: 0.3, maximum: 0.7, default: 0.5 }
+        }
+      },
+      status: 'draft',
+      tags: ['retaining-wall', 'civil', 'geotechnical']
+    }
+  },
+  // ===========================================================================
+  // STRUCTURAL TEMPLATES
+  // ===========================================================================
+  rcc_beam: {
+    name: 'RCC Beam Design',
+    description: 'Flexure and shear design per IS 456',
+    data: {
+      deliverable_type: 'rcc_beam_design',
+      display_name: 'RCC Beam Design (IS 456)',
+      discipline: 'structural',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'analyze_beam',
+          description: 'Calculate bending moments and shear forces',
+          persona: 'Designer',
+          function_to_call: 'structural_beam_designer_v1.analyze_beam',
+          input_mapping: {
+            span_length: '$input.span_length',
+            beam_width: '$input.beam_width',
+            beam_depth: '$input.beam_depth',
+            dead_load: '$input.dead_load',
+            live_load: '$input.live_load',
+            support_type: '$input.support_type',
+            load_type: '$input.load_type',
+            concrete_grade: '$input.concrete_grade',
+            steel_grade: '$input.steel_grade',
+            cover: '$input.cover',
+            exposure_condition: '$input.exposure_condition'
+          },
+          output_variable: 'beam_analysis',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'design_reinforcement',
+          description: 'Design flexural and shear reinforcement',
+          persona: 'Engineer',
+          function_to_call: 'structural_beam_designer_v1.design_beam_reinforcement',
+          input_mapping: {
+            analysis_result: '$step1'
+          },
+          output_variable: 'beam_design',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['span_length', 'beam_width', 'beam_depth', 'dead_load', 'live_load'],
+        properties: {
+          span_length: { type: 'number', minimum: 1.0, maximum: 15.0, description: 'Span length in meters' },
+          beam_width: { type: 'number', minimum: 0.15, maximum: 1.0, default: 0.3, description: 'Beam width in meters' },
+          beam_depth: { type: 'number', minimum: 0.2, maximum: 2.0, default: 0.6, description: 'Beam depth in meters' },
+          dead_load: { type: 'number', minimum: 0, description: 'Dead load in kN/m' },
+          live_load: { type: 'number', minimum: 0, description: 'Live load in kN/m' },
+          support_type: { type: 'string', enum: ['simply_supported', 'fixed_both', 'fixed_one', 'cantilever'], default: 'simply_supported' },
+          load_type: { type: 'string', enum: ['uniformly_distributed', 'point_load_center', 'point_load_third'], default: 'uniformly_distributed' },
+          concrete_grade: { type: 'string', enum: ['M20', 'M25', 'M30', 'M35', 'M40'], default: 'M25' },
+          steel_grade: { type: 'string', enum: ['Fe415', 'Fe500', 'Fe550'], default: 'Fe500' },
+          cover: { type: 'number', minimum: 25, maximum: 75, default: 40.0, description: 'Clear cover in mm' },
+          exposure_condition: { type: 'string', enum: ['mild', 'moderate', 'severe', 'very_severe', 'extreme'], default: 'moderate' }
+        }
+      },
+      status: 'draft',
+      tags: ['beam', 'rcc', 'structural']
+    }
+  },
+  steel_column: {
+    name: 'Steel Column Design',
+    description: 'Capacity check and connection per IS 800',
+    data: {
+      deliverable_type: 'steel_column_design',
+      display_name: 'Steel Column Design (IS 800)',
+      discipline: 'structural',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'check_capacity',
+          description: 'Check column capacity with buckling analysis',
+          persona: 'Designer',
+          function_to_call: 'structural_steel_column_designer_v1.check_column_capacity',
+          input_mapping: {
+            axial_load: '$input.axial_load',
+            column_height: '$input.column_height',
+            effective_length_factor_major: '$input.effective_length_factor_major',
+            effective_length_factor_minor: '$input.effective_length_factor_minor',
+            section_type: '$input.section_type',
+            section_size: '$input.section_size',
+            steel_grade: '$input.steel_grade',
+            is_braced: '$input.is_braced'
+          },
+          output_variable: 'capacity_result',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'design_connection',
+          description: 'Design base plate and anchor bolts',
+          persona: 'Engineer',
+          function_to_call: 'structural_steel_column_designer_v1.design_column_connection',
+          input_mapping: {
+            capacity_result: '$step1'
+          },
+          output_variable: 'connection_design',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['axial_load', 'column_height', 'section_type', 'section_size'],
+        properties: {
+          axial_load: { type: 'number', minimum: 10, maximum: 10000, description: 'Axial load in kN' },
+          column_height: { type: 'number', minimum: 2.0, maximum: 20.0, description: 'Column height in meters' },
+          effective_length_factor_major: { type: 'number', minimum: 0.5, maximum: 2.5, default: 1.0 },
+          effective_length_factor_minor: { type: 'number', minimum: 0.5, maximum: 2.5, default: 1.0 },
+          section_type: { type: 'string', enum: ['ISHB', 'ISMB', 'ISMC', 'UC', 'UC_BUILT_UP'], default: 'ISHB' },
+          section_size: { type: 'string', enum: ['150', '200', '225', '250', '300', '350', '400', '450'], default: '200' },
+          steel_grade: { type: 'string', enum: ['E250', 'E300', 'E350', 'E410', 'E450'], default: 'E250' },
+          is_braced: { type: 'boolean', default: true, description: 'Is the column braced?' }
+        }
+      },
+      status: 'draft',
+      tags: ['column', 'steel', 'structural']
+    }
+  },
+  rcc_slab: {
+    name: 'RCC Slab Design',
+    description: 'One-way or two-way slab per IS 456',
+    data: {
+      deliverable_type: 'rcc_slab_design',
+      display_name: 'RCC Slab Design (IS 456)',
+      discipline: 'structural',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'analyze_slab',
+          description: 'Analyze slab for bending moments',
+          persona: 'Designer',
+          function_to_call: 'structural_slab_designer_v1.analyze_slab',
+          input_mapping: {
+            span_lx: '$input.span_lx',
+            span_ly: '$input.span_ly',
+            slab_thickness: '$input.slab_thickness',
+            dead_load: '$input.dead_load',
+            live_load: '$input.live_load',
+            edge_condition: '$input.edge_condition',
+            concrete_grade: '$input.concrete_grade',
+            steel_grade: '$input.steel_grade',
+            cover: '$input.cover',
+            exposure_condition: '$input.exposure_condition'
+          },
+          output_variable: 'slab_analysis',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'design_reinforcement',
+          description: 'Design slab reinforcement with deflection check',
+          persona: 'Engineer',
+          function_to_call: 'structural_slab_designer_v1.design_slab_reinforcement',
+          input_mapping: {
+            analysis_result: '$step1'
+          },
+          output_variable: 'slab_design',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['span_lx', 'span_ly', 'dead_load', 'live_load'],
+        properties: {
+          span_lx: { type: 'number', minimum: 1.0, maximum: 10.0, description: 'Short span in meters' },
+          span_ly: { type: 'number', minimum: 1.0, maximum: 15.0, description: 'Long span in meters' },
+          slab_thickness: { type: 'number', minimum: 0.1, maximum: 0.3, default: 0.15, description: 'Slab thickness in meters' },
+          dead_load: { type: 'number', minimum: 0, description: 'Additional dead load in kN/m²' },
+          live_load: { type: 'number', minimum: 0, description: 'Live load in kN/m²' },
+          edge_condition: { type: 'string', enum: ['all_edges_discontinuous', 'one_edge_continuous', 'two_edges_continuous', 'three_edges_continuous', 'all_edges_continuous', 'one_short_continuous', 'one_long_continuous', 'two_short_continuous', 'two_long_continuous'], default: 'all_edges_discontinuous' },
+          concrete_grade: { type: 'string', enum: ['M20', 'M25', 'M30', 'M35'], default: 'M25' },
+          steel_grade: { type: 'string', enum: ['Fe415', 'Fe500'], default: 'Fe500' },
+          cover: { type: 'number', minimum: 15, maximum: 50, default: 20.0, description: 'Clear cover in mm' },
+          exposure_condition: { type: 'string', enum: ['mild', 'moderate', 'severe', 'very_severe', 'extreme'], default: 'moderate' }
+        }
+      },
+      status: 'draft',
+      tags: ['slab', 'rcc', 'structural']
+    }
+  },
+  base_plate: {
+    name: 'Base Plate & Anchor Bolts',
+    description: 'Column base plate design per IS 800',
+    data: {
+      deliverable_type: 'base_plate_design',
+      display_name: 'Base Plate & Anchor Bolt Design',
+      discipline: 'structural',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'analyze_base_plate',
+          description: 'Analyze base plate requirements',
+          persona: 'Designer',
+          function_to_call: 'structural_base_plate_designer_v1.analyze_base_plate',
+          input_mapping: {
+            axial_load: '$input.axial_load',
+            moment_major: '$input.moment_major',
+            moment_minor: '$input.moment_minor',
+            shear_force: '$input.shear_force',
+            column_section: '$input.column_section',
+            column_size: '$input.column_size',
+            concrete_grade: '$input.concrete_grade',
+            steel_grade: '$input.steel_grade',
+            connection_type: '$input.connection_type'
+          },
+          output_variable: 'plate_analysis',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'design_anchor_bolts',
+          description: 'Design anchor bolts and connection details',
+          persona: 'Engineer',
+          function_to_call: 'structural_base_plate_designer_v1.design_anchor_bolts',
+          input_mapping: {
+            analysis_result: '$step1'
+          },
+          output_variable: 'anchor_design',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['axial_load', 'column_section', 'column_size'],
+        properties: {
+          axial_load: { type: 'number', minimum: 10, maximum: 10000, description: 'Axial load in kN' },
+          moment_major: { type: 'number', minimum: 0, default: 0.0, description: 'Moment about major axis in kNm' },
+          moment_minor: { type: 'number', minimum: 0, default: 0.0, description: 'Moment about minor axis in kNm' },
+          shear_force: { type: 'number', minimum: 0, default: 0.0, description: 'Shear force in kN' },
+          column_section: { type: 'string', enum: ['ISHB', 'ISMB', 'UC'], default: 'ISHB' },
+          column_size: { type: 'string', enum: ['150', '200', '225', '250', '300', '350', '400'], default: '200' },
+          concrete_grade: { type: 'string', enum: ['M20', 'M25', 'M30', 'M35'], default: 'M25' },
+          steel_grade: { type: 'string', enum: ['E250', 'E300', 'E350'], default: 'E250' },
+          connection_type: { type: 'string', enum: ['pinned', 'fixed'], default: 'pinned' }
+        }
+      },
+      status: 'draft',
+      tags: ['base-plate', 'anchor-bolts', 'steel', 'structural']
+    }
+  },
+  // ===========================================================================
+  // ARCHITECTURAL TEMPLATES
+  // ===========================================================================
+  room_data_sheet: {
+    name: 'Room Data Sheet (RDS)',
+    description: 'Complete room specifications per NBC 2016',
+    data: {
+      deliverable_type: 'room_data_sheet',
+      display_name: 'Architectural Room Data Sheet',
+      discipline: 'architectural',
+      workflow_steps: [
+        {
+          step_number: 1,
+          step_name: 'analyze_requirements',
+          description: 'Analyze room type requirements',
+          persona: 'Designer',
+          function_to_call: 'architectural_rds_generator_v1.analyze_room_requirements',
+          input_mapping: {
+            room_type: '$input.room_type',
+            room_name: '$input.room_name',
+            room_number: '$input.room_number',
+            floor_level: '$input.floor_level',
+            length: '$input.length',
+            width: '$input.width',
+            height: '$input.height',
+            occupancy: '$input.occupancy',
+            building_type: '$input.building_type'
+          },
+          output_variable: 'room_analysis',
+          timeout_seconds: 300
+        },
+        {
+          step_number: 2,
+          step_name: 'generate_rds',
+          description: 'Generate complete room data sheet',
+          persona: 'Architect',
+          function_to_call: 'architectural_rds_generator_v1.generate_room_data_sheet',
+          input_mapping: {
+            analysis_result: '$step1'
+          },
+          output_variable: 'room_data_sheet',
+          timeout_seconds: 300
+        }
+      ],
+      input_schema: {
+        type: 'object',
+        required: ['room_type', 'room_name', 'length', 'width', 'height'],
+        properties: {
+          room_type: { type: 'string', enum: ['office', 'conference', 'laboratory', 'server_room', 'washroom', 'corridor', 'staircase', 'lobby', 'cafeteria'], default: 'office' },
+          room_name: { type: 'string', description: 'Room name (e.g., "Executive Office")' },
+          room_number: { type: 'string', default: 'TBD', description: 'Room number' },
+          floor_level: { type: 'string', default: 'Ground Floor', description: 'Floor level' },
+          length: { type: 'number', minimum: 2.0, maximum: 50.0, description: 'Room length in meters' },
+          width: { type: 'number', minimum: 2.0, maximum: 50.0, description: 'Room width in meters' },
+          height: { type: 'number', minimum: 2.4, maximum: 10.0, default: 3.0, description: 'Floor to ceiling height in meters' },
+          occupancy: { type: 'integer', minimum: 1, maximum: 500, default: 10, description: 'Expected occupancy' },
+          building_type: { type: 'string', enum: ['commercial', 'residential', 'industrial', 'healthcare', 'educational', 'hospitality'], default: 'commercial' }
+        }
+      },
+      status: 'draft',
+      tags: ['room-data-sheet', 'rds', 'architectural']
+    }
   }
 };
 
-// Available functions from backend
+// Available functions from backend (Phase 2 + Phase 3 Sprint 3)
 const AVAILABLE_FUNCTIONS = [
+  // ===========================================================================
+  // CIVIL - FOUNDATION DESIGN (Phase 2)
+  // ===========================================================================
   {
     id: 'civil_foundation_designer_v1.design_isolated_footing',
     label: 'Design Isolated Footing',
-    category: 'Civil - Foundation',
-    description: 'Design foundation per IS 456',
+    category: 'Civil - Isolated Foundation',
+    description: 'Design isolated footing per IS 456:2000',
     params: ['axial_load_dead', 'axial_load_live', 'column_width', 'column_depth', 'safe_bearing_capacity', 'concrete_grade', 'steel_grade']
   },
   {
     id: 'civil_foundation_designer_v1.optimize_schedule',
     label: 'Optimize Schedule',
-    category: 'Civil - Optimization',
+    category: 'Civil - Isolated Foundation',
     description: 'Optimize foundation design for cost/schedule',
     params: ['footing_length_initial', 'footing_width_initial', 'footing_depth', 'steel_bars_long', 'steel_bars_trans', 'bar_diameter', 'concrete_volume']
+  },
+  // ===========================================================================
+  // CIVIL - COMBINED FOOTING DESIGN (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'civil_combined_footing_designer_v1.analyze_combined_footing',
+    label: 'Analyze Combined Footing',
+    category: 'Civil - Combined Footing',
+    description: 'Analyze combined footing for 2-4 columns per IS 456:2000',
+    params: ['columns', 'safe_bearing_capacity', 'concrete_grade', 'steel_grade', 'cover', 'soil_density']
+  },
+  {
+    id: 'civil_combined_footing_designer_v1.design_combined_footing_reinforcement',
+    label: 'Design Combined Footing Reinforcement',
+    category: 'Civil - Combined Footing',
+    description: 'Design reinforcement including punching shear check',
+    params: ['analysis_result']
+  },
+  // ===========================================================================
+  // CIVIL - RETAINING WALL DESIGN (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'civil_retaining_wall_designer_v1.analyze_retaining_wall',
+    label: 'Analyze Retaining Wall',
+    category: 'Civil - Retaining Wall',
+    description: 'Analyze cantilever retaining wall stability per IS 14458',
+    params: ['wall_height', 'surcharge_load', 'soil_unit_weight', 'angle_of_internal_friction', 'safe_bearing_capacity', 'backfill_slope', 'concrete_grade', 'steel_grade', 'cover', 'coefficient_of_friction']
+  },
+  {
+    id: 'civil_retaining_wall_designer_v1.design_retaining_wall_reinforcement',
+    label: 'Design Retaining Wall Reinforcement',
+    category: 'Civil - Retaining Wall',
+    description: 'Design stem and base reinforcement per IS 456:2000',
+    params: ['analysis_result']
+  },
+  // ===========================================================================
+  // STRUCTURAL - RCC BEAM DESIGN (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'structural_beam_designer_v1.analyze_beam',
+    label: 'Analyze RCC Beam',
+    category: 'Structural - RCC Beam',
+    description: 'Analyze beam for bending moments and shear forces per IS 456:2000',
+    params: ['span_length', 'beam_width', 'beam_depth', 'dead_load', 'live_load', 'support_type', 'load_type', 'concrete_grade', 'steel_grade', 'cover', 'exposure_condition']
+  },
+  {
+    id: 'structural_beam_designer_v1.design_beam_reinforcement',
+    label: 'Design RCC Beam Reinforcement',
+    category: 'Structural - RCC Beam',
+    description: 'Design flexural and shear reinforcement with deflection check',
+    params: ['analysis_result']
+  },
+  // ===========================================================================
+  // STRUCTURAL - STEEL COLUMN DESIGN (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'structural_steel_column_designer_v1.check_column_capacity',
+    label: 'Check Steel Column Capacity',
+    category: 'Structural - Steel Column',
+    description: 'Check column capacity with buckling analysis per IS 800:2007',
+    params: ['axial_load', 'column_height', 'effective_length_factor_major', 'effective_length_factor_minor', 'section_type', 'section_size', 'steel_grade', 'is_braced']
+  },
+  {
+    id: 'structural_steel_column_designer_v1.design_column_connection',
+    label: 'Design Steel Column Connection',
+    category: 'Structural - Steel Column',
+    description: 'Design base plate and anchor bolt connections',
+    params: ['capacity_result']
+  },
+  // ===========================================================================
+  // STRUCTURAL - RCC SLAB DESIGN (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'structural_slab_designer_v1.analyze_slab',
+    label: 'Analyze RCC Slab',
+    category: 'Structural - RCC Slab',
+    description: 'Analyze one-way or two-way slab per IS 456:2000',
+    params: ['span_lx', 'span_ly', 'slab_thickness', 'dead_load', 'live_load', 'edge_condition', 'concrete_grade', 'steel_grade', 'cover', 'exposure_condition']
+  },
+  {
+    id: 'structural_slab_designer_v1.design_slab_reinforcement',
+    label: 'Design RCC Slab Reinforcement',
+    category: 'Structural - RCC Slab',
+    description: 'Design slab reinforcement with deflection check',
+    params: ['analysis_result']
+  },
+  // ===========================================================================
+  // STRUCTURAL - BASE PLATE & ANCHOR BOLT (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'structural_base_plate_designer_v1.analyze_base_plate',
+    label: 'Analyze Base Plate',
+    category: 'Structural - Base Plate',
+    description: 'Analyze steel column base plate requirements per IS 800:2007',
+    params: ['axial_load', 'moment_major', 'moment_minor', 'shear_force', 'column_section', 'column_size', 'concrete_grade', 'steel_grade', 'connection_type']
+  },
+  {
+    id: 'structural_base_plate_designer_v1.design_anchor_bolts',
+    label: 'Design Anchor Bolts',
+    category: 'Structural - Base Plate',
+    description: 'Design anchor bolts and connection details',
+    params: ['analysis_result']
+  },
+  // ===========================================================================
+  // ARCHITECTURAL - ROOM DATA SHEET (Phase 3 Sprint 3)
+  // ===========================================================================
+  {
+    id: 'architectural_rds_generator_v1.analyze_room_requirements',
+    label: 'Analyze Room Requirements',
+    category: 'Architectural - Room Data Sheet',
+    description: 'Analyze room requirements based on type per NBC 2016',
+    params: ['room_type', 'room_name', 'room_number', 'floor_level', 'length', 'width', 'height', 'occupancy', 'building_type']
+  },
+  {
+    id: 'architectural_rds_generator_v1.generate_room_data_sheet',
+    label: 'Generate Room Data Sheet',
+    category: 'Architectural - Room Data Sheet',
+    description: 'Generate complete RDS with finishes, MEP, and FF&E',
+    params: ['analysis_result']
   }
 ];
 
