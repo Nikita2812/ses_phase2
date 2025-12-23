@@ -32,6 +32,7 @@ from app.api.versioning_routes import (  # Phase 3 Sprint 4: A/B Testing & Versi
 from app.api.skg_routes import router as skg_router  # Phase 4 Sprint 1: Strategic Knowledge Graph
 from app.api.constructability_routes import router as constructability_router  # Phase 4 Sprint 2: Constructability Agent
 from app.api.scenario_routes import router as scenario_router  # Phase 4 Sprint 3: What-If Cost Engine
+from app.api.qap_routes import router as qap_router  # Phase 4 Sprint 4: Dynamic QAP Generator
 
 
 # =============================================================================
@@ -98,6 +99,7 @@ app.include_router(performance_router)  # Phase 3 Sprint 4: Performance Dashboar
 app.include_router(skg_router)  # Phase 4 Sprint 1: Strategic Knowledge Graph
 app.include_router(constructability_router)  # Phase 4 Sprint 2: Constructability Agent
 app.include_router(scenario_router)  # Phase 4 Sprint 3: What-If Cost Engine
+app.include_router(qap_router)  # Phase 4 Sprint 4: Dynamic QAP Generator
 
 # Mount static files for chat UI (Sprint 3) - MUST be after API routes
 static_path = Path("static")

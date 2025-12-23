@@ -14,6 +14,7 @@ import ExperimentsPage from './pages/ExperimentsPage'
 import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 import ConstructabilityPage from './pages/ConstructabilityPage'
 import ScenarioComparisonPage from './pages/ScenarioComparisonPage'
+import QAPGeneratorPage from './pages/QAPGeneratorPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path="knowledge-graph" element={<KnowledgeGraphPage />} />
           <Route path="constructability" element={<ConstructabilityPage />} />
           <Route path="scenarios" element={<ScenarioComparisonPage />} />
+          <Route path="qap-generator" element={<QAPGeneratorPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

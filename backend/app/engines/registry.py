@@ -540,6 +540,68 @@ def register_all_engines():
         output_schema=ConstructabilityPlan
     )
 
+    # ========================================================================
+    # QAP GENERATOR (Phase 4 Sprint 4)
+    # ========================================================================
+    from app.engines.qap import (
+        generate_qap,
+        extract_scope_items,
+        map_scope_to_itps,
+        assemble_qap,
+        QAPGeneratorInput,
+        QAPGeneratorOutput,
+        ScopeExtractionInput,
+        ScopeExtractionResult,
+        ITPMappingInput,
+        ITPMappingResult,
+        QAPAssemblyInput,
+        QAPDocument,
+    )
+
+    # Main QAP generator - complete pipeline
+    engine_registry.register_tool(
+        tool_name="qap_generator_v1",
+        function_name="generate_qap",
+        function=generate_qap,
+        description="Generate complete Quality Assurance Plan from a scope document. "
+                    "Extracts scope items, maps to ITPs, and assembles the QAP document.",
+        input_schema=QAPGeneratorInput,
+        output_schema=QAPGeneratorOutput
+    )
+
+    # Step 1: Scope extraction
+    engine_registry.register_tool(
+        tool_name="qap_generator_v1",
+        function_name="extract_scope_items",
+        function=extract_scope_items,
+        description="Extract scope items from a Project Scope of Work document. "
+                    "Identifies construction activities, categories, and quantities.",
+        input_schema=ScopeExtractionInput,
+        output_schema=ScopeExtractionResult
+    )
+
+    # Step 2: ITP mapping
+    engine_registry.register_tool(
+        tool_name="qap_generator_v1",
+        function_name="map_scope_to_itps",
+        function=map_scope_to_itps,
+        description="Map scope items to standard Inspection Test Plans (ITPs). "
+                    "Finds best matching ITPs for each scope item.",
+        input_schema=ITPMappingInput,
+        output_schema=ITPMappingResult
+    )
+
+    # Step 3: QAP assembly
+    engine_registry.register_tool(
+        tool_name="qap_generator_v1",
+        function_name="assemble_qap",
+        function=assemble_qap,
+        description="Assemble a complete QAP document from scope and ITP mappings. "
+                    "Creates chapters, project ITPs, and inspection forms.",
+        input_schema=QAPAssemblyInput,
+        output_schema=QAPDocument
+    )
+
     # Future registrations will go here:
     # - mep_hvac_designer_v1
     # - mep_electrical_designer_v1
