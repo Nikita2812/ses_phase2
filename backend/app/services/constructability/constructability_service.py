@@ -482,8 +482,9 @@ class ConstructabilityService:
         """
         try:
             # Get audits in time range
+            from datetime import timedelta
             cutoff = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-            cutoff = cutoff.replace(day=cutoff.day - days)
+            cutoff = cutoff - timedelta(days=days)
 
             query = self.supabase.table("constructability_audits") \
                 .select("*") \

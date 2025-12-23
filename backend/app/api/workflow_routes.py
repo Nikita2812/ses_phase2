@@ -524,6 +524,217 @@ async def get_workflow_stats(deliverable_type: str):
 
 
 # =============================================================================
+# EXECUTION LIST & DETAILS
+# =============================================================================
+
+@router.get("/executions/list")
+async def list_executions(
+    deliverable_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    List all workflow executions with optional filters.
+
+    Args:
+        deliverable_type: Filter by workflow type
+        status: Filter by execution status
+        limit: Maximum number of results
+        offset: Number of results to skip
+
+    Returns:
+        List of workflow executions with metadata
+    """
+    try:
+        from app.core.database import db_config
+
+        # Build query with optional filters
+        query = """
+            SELECT
+                id,
+                deliverable_type,
+                execution_status,
+                risk_score,
+                execution_time_ms,
+                user_id,
+                requires_approval,
+                created_at,
+                completed_at,
+                error_message
+            FROM csa.workflow_executions
+            WHERE 1=1
+        """
+        params = []
+
+        if deliverable_type:
+            query += " AND deliverable_type = %s"
+            params.append(deliverable_type)
+
+        if status:
+            query += " AND execution_status = %s"
+            params.append(status)
+
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        rows = db_config.execute_query(query, tuple(params) if params else None)
+
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM csa.workflow_executions WHERE 1=1"
+        count_params = []
+        if deliverable_type:
+            count_query += " AND deliverable_type = %s"
+            count_params.append(deliverable_type)
+        if status:
+            count_query += " AND execution_status = %s"
+            count_params.append(status)
+
+        count_result = db_config.execute_query(count_query, tuple(count_params) if count_params else None)
+        total_count = count_result[0][0] if count_result else 0
+
+        executions = []
+        for row in rows:
+            executions.append({
+                "id": str(row[0]),
+                "deliverable_type": row[1],
+                "status": row[2],
+                "risk_score": float(row[3]) if row[3] else None,
+                "execution_time_ms": row[4],
+                "user_id": row[5],
+                "requires_approval": row[6],
+                "created_at": row[7].isoformat() if row[7] else None,
+                "completed_at": row[8].isoformat() if row[8] else None,
+                "error_message": row[9]
+            })
+
+        return {
+            "executions": executions,
+            "total": total_count,
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to list executions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/executions/{execution_id}")
+async def get_execution(execution_id: str):
+    """
+    Get details of a specific workflow execution.
+
+    Args:
+        execution_id: The execution UUID
+
+    Returns:
+        Full execution details including input/output data
+    """
+    try:
+        from app.core.database import db_config
+
+        query = """
+            SELECT
+                id,
+                schema_id,
+                deliverable_type,
+                execution_status,
+                input_data,
+                output_data,
+                intermediate_results,
+                risk_score,
+                execution_time_ms,
+                user_id,
+                requires_approval,
+                error_message,
+                created_at,
+                started_at,
+                completed_at,
+                project_id
+            FROM csa.workflow_executions
+            WHERE id = %s
+        """
+
+        rows = db_config.execute_query(query, (execution_id,))
+
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"Execution '{execution_id}' not found")
+
+        row = rows[0]
+        return {
+            "id": str(row[0]),
+            "schema_id": str(row[1]) if row[1] else None,
+            "deliverable_type": row[2],
+            "status": row[3],
+            "input_data": row[4],
+            "output_data": row[5],
+            "intermediate_results": row[6],
+            "risk_score": float(row[7]) if row[7] else None,
+            "execution_time_ms": row[8],
+            "user_id": row[9],
+            "requires_approval": row[10],
+            "error_message": row[11],
+            "created_at": row[12].isoformat() if row[12] else None,
+            "started_at": row[13].isoformat() if row[13] else None,
+            "completed_at": row[14].isoformat() if row[14] else None,
+            "project_id": str(row[15]) if row[15] else None
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get execution {execution_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/executions/stats/summary")
+async def get_execution_stats(days: int = 30):
+    """
+    Get summary statistics for all executions.
+
+    Args:
+        days: Number of days to look back
+
+    Returns:
+        Execution statistics
+    """
+    try:
+        from app.core.database import db_config
+
+        query = f"""
+            SELECT
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE execution_status = 'completed') as completed,
+                COUNT(*) FILTER (WHERE execution_status = 'failed') as failed,
+                COUNT(*) FILTER (WHERE execution_status = 'running') as running,
+                COUNT(*) FILTER (WHERE execution_status = 'awaiting_approval') as awaiting_approval,
+                AVG(risk_score) as avg_risk_score,
+                AVG(execution_time_ms) as avg_execution_time
+            FROM csa.workflow_executions
+            WHERE created_at >= NOW() - INTERVAL '{days} days'
+        """
+
+        rows = db_config.execute_query(query)
+        row = rows[0] if rows else (0, 0, 0, 0, 0, None, None)
+
+        return {
+            "total_executions": row[0] or 0,
+            "completed": row[1] or 0,
+            "failed": row[2] or 0,
+            "running": row[3] or 0,
+            "awaiting_approval": row[4] or 0,
+            "avg_risk_score": float(row[5]) if row[5] else 0,
+            "avg_execution_time_ms": float(row[6]) if row[6] else 0,
+            "days": days
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get execution stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # HEALTH CHECK
 # =============================================================================
 

@@ -11,6 +11,24 @@
 CREATE SCHEMA IF NOT EXISTS csa;
 
 -- =============================================================================
+-- REFERENCE DATA TABLE (if not exists)
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS csa.reference_data (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category VARCHAR(100) NOT NULL,
+    key VARCHAR(100) NOT NULL,
+    value JSONB NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(category, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reference_data_category ON csa.reference_data(category);
+CREATE INDEX IF NOT EXISTS idx_reference_data_key ON csa.reference_data(key);
+
+-- =============================================================================
 -- STRATEGIC REVIEW SESSIONS
 -- =============================================================================
 
