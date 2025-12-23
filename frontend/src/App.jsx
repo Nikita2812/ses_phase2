@@ -15,6 +15,7 @@ import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 import ConstructabilityPage from './pages/ConstructabilityPage'
 import ScenarioComparisonPage from './pages/ScenarioComparisonPage'
 import QAPGeneratorPage from './pages/QAPGeneratorPage'
+import StrategicPartnerPage from './pages/StrategicPartnerPage'
 import SettingsPage from './pages/SettingsPage'
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
           <Route path="constructability" element={<ConstructabilityPage />} />
           <Route path="scenarios" element={<ScenarioComparisonPage />} />
           <Route path="qap-generator" element={<QAPGeneratorPage />} />
+          <Route path="strategic-partner" element={<StrategicPartnerPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

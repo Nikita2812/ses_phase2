@@ -36,8 +36,6 @@ import {
 } from 'react-icons/fi';
 import scenarioService from '../services/scenarioService';
 
-const API_BASE = 'http://localhost:8000';
-
 // Format currency in INR with lakhs/crores
 function formatCurrency(amount) {
   if (amount >= 10000000) {

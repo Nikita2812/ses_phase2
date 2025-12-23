@@ -8,7 +8,7 @@
  * - Comparing scenarios with trade-off analysis
  */
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE = '/api/v1/scenarios';
 
 // =============================================================================
 // TEMPLATE OPERATIONS
@@ -19,7 +19,7 @@ const API_BASE_URL = 'http://localhost:8000';
  * @param {string} templateType - Optional filter by type (beam, foundation)
  */
 export async function getTemplates(templateType = null) {
-  let url = `${API_BASE_URL}/scenarios/templates`;
+  let url = `${API_BASE}/templates`;
   if (templateType) {
     url += `?template_type=${templateType}`;
   }
@@ -37,7 +37,7 @@ export async function getTemplates(templateType = null) {
  * @param {string} templateId - Template ID
  */
 export async function getTemplate(templateId) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/templates/${templateId}`);
+  const response = await fetch(`${API_BASE}/templates/${templateId}`);
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to fetch template');
@@ -55,7 +55,7 @@ export async function getTemplate(templateId) {
  * @param {Object} params - Template parameters
  */
 export async function createScenariosFromTemplate(params) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/from-template`, {
+  const response = await fetch(`${API_BASE}/from-template`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(params),
@@ -74,7 +74,7 @@ export async function createScenariosFromTemplate(params) {
  * @param {string} createdBy - User creating the scenario
  */
 export async function createScenario(scenarioData, createdBy = 'user') {
-  const response = await fetch(`${API_BASE_URL}/scenarios/?created_by=${createdBy}`, {
+  const response = await fetch(`${API_BASE}/?created_by=${createdBy}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(scenarioData),
@@ -100,7 +100,7 @@ export async function listScenarios(filters = {}) {
   if (filters.limit) params.append('limit', filters.limit);
   if (filters.offset) params.append('offset', filters.offset);
 
-  const response = await fetch(`${API_BASE_URL}/scenarios/?${params.toString()}`);
+  const response = await fetch(`${API_BASE}/?${params.toString()}`);
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to fetch scenarios');
@@ -113,7 +113,7 @@ export async function listScenarios(filters = {}) {
  * @param {string} scenarioId - Scenario ID
  */
 export async function getScenario(scenarioId) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}`);
+  const response = await fetch(`${API_BASE}/${scenarioId}`);
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to fetch scenario');
@@ -126,7 +126,7 @@ export async function getScenario(scenarioId) {
  * @param {string} scenarioId - Scenario ID
  */
 export async function getScenarioBOQ(scenarioId) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/${scenarioId}/boq`);
+  const response = await fetch(`${API_BASE}/${scenarioId}/boq`);
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail || 'Failed to fetch BOQ');
@@ -145,7 +145,7 @@ export async function getScenarioBOQ(scenarioId) {
  * @param {string} comparisonGroupId - Optional group ID
  */
 export async function compareScenarios(scenarioAId, scenarioBId, comparisonGroupId = null) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/compare?compared_by=user`, {
+  const response = await fetch(`${API_BASE}/compare?compared_by=user`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -170,7 +170,7 @@ export async function compareScenarios(scenarioAId, scenarioBId, comparisonGroup
  * @param {Object} varsB - Scenario B variables
  */
 export async function quickCompare(baseInput, scenarioType, varsA, varsB) {
-  const response = await fetch(`${API_BASE_URL}/scenarios/quick-compare?scenario_type=${scenarioType}&created_by=user`, {
+  const response = await fetch(`${API_BASE}/quick-compare?scenario_type=${scenarioType}&created_by=user`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -192,7 +192,7 @@ export async function quickCompare(baseInput, scenarioType, varsA, varsB) {
  * @param {Object} groupData - Group parameters
  */
 export async function createComparisonGroup(groupData, createdBy = 'user') {
-  const response = await fetch(`${API_BASE_URL}/scenarios/groups?created_by=${createdBy}`, {
+  const response = await fetch(`${API_BASE}/groups?created_by=${createdBy}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(groupData),
